@@ -1,0 +1,62 @@
+const express = require("express");
+const connectDB = require("./config/db");
+const app = express();
+const morgan = require("morgan");
+const mongoose = require("mongoose");
+const { Server } = require("socket.io");
+const { handleSignaling } = require("./controllers/chatController");
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
+const swaggerDocs = require("./swagger");
+const mongoSanitize = require("express-mongo-sanitize");
+const xss = require("xss-clean");
+require("dotenv").config();
+const swaggerUi = require("swagger-ui-express");
+// Connect Database
+connectDB();
+
+// Init Middleware
+app.use(express.json({ extended: false }));
+app.use(morgan("combined"));
+app.use(helmet());
+app.use(
+  rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+  })
+);
+
+// Define Routes
+app.use("/api/users", require("./routes/users"));
+app.use("/api/notifications", require("./routes/notifications"));
+app.use("/api/chats", require("./routes/chats"));
+app.use("/api/friend-requests", require("./routes/friendRequests"));
+app.use("/api/chat-rooms", require("./routes/chatRooms"));
+app.use("/api/certifications", require("./routes/certifications"));
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+app.use(mongoSanitize());
+app.use(xss());
+// Error Handling Middleware
+app.use(require("./middleware/errorHandler"));
+// WebSocket Server for signaling
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+  },
+});
+
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  socket.on("message", (message) => {
+    handleSignaling(io, socket, message);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+module.exports = app;
