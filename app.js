@@ -12,6 +12,7 @@ const mongoSanitize = require("express-mongo-sanitize");
 const xss = require("xss-clean");
 require("dotenv").config();
 const swaggerUi = require("swagger-ui-express");
+
 // Connect Database
 connectDB();
 
@@ -36,8 +37,10 @@ app.use("/api/certifications", require("./routes/certifications"));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use(mongoSanitize());
 app.use(xss());
+
 // Error Handling Middleware
 app.use(require("./middleware/errorHandler"));
+
 // WebSocket Server for signaling
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -57,6 +60,8 @@ io.on("connection", (socket) => {
     console.log("User disconnected:", socket.id);
   });
 });
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+
 module.exports = app;

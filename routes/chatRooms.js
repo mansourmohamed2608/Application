@@ -130,5 +130,8 @@ router.post(
   [auth, [check("chatRoomId", "Chat room ID is required").not().isEmpty()]],
   chatRoomController.startCall
 );
+router.get("/", auth, chatRoomController.getAllChatRooms);
+router.get("/:id", auth, chatRoomController.getChatRoomDetails);
+router.post("/join", auth, chatRoomController.joinChatRoom);
 
 module.exports = router;

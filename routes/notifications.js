@@ -99,5 +99,7 @@ router.post(
  *         description: Notification not found
  */
 router.put("/:id/read", auth, notificationController.markAsRead);
-
+router.get("/unread", auth, notificationController.getUnreadNotifications);
+router.get("/read", auth, notificationController.getReadNotifications);
 module.exports = router;
+

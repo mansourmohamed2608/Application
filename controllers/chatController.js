@@ -62,3 +62,15 @@ exports.getChatHistory = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+// Get all chats
+exports.getAllChats = async (req, res) => {
+  try {
+    const chats = await Chat.find({ users: req.user.id })
+      .populate("users", "username")
+      .sort({ "messages.timestamp": -1 });
+    res.json(chats);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};

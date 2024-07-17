@@ -6,6 +6,7 @@ const CertificationSchema = new mongoose.Schema({
   year: { type: String, required: true },
   document: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
+  achievementDate: { type: Date, required: true },
 });
 
 module.exports = mongoose.model("Certification", CertificationSchema);

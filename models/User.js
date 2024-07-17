@@ -6,6 +6,12 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   profilePicture: { type: String },
   status: { type: String, enum: ["online", "offline"], default: "offline" },
+  firstName: { type: String, required: true },
+  lastName: { type: String, required: true },
+  universityName: { type: String },
+  mutualFriends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
+  info: { type: String },
+  address: { type: String },
 });
 
 module.exports = mongoose.model("User", UserSchema);

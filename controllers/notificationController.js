@@ -58,3 +58,30 @@ exports.markAsRead = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+// Get unread notifications for a user
+exports.getUnreadNotifications = async (req, res) => {
+  try {
+    const notifications = await Notification.find({
+      userId: req.user.id,
+      read: false,
+    }).sort({ date: -1 });
+    res.json(notifications);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};
+
+// Get read notifications for a user
+exports.getReadNotifications = async (req, res) => {
+  try {
+    const notifications = await Notification.find({
+      userId: req.user.id,
+      read: true,
+    }).sort({ date: -1 });
+    res.json(notifications);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};

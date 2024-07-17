@@ -34,3 +34,15 @@ exports.addCertification = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+// Get all certificates for a user
+exports.getCertificates = async (req, res) => {
+  try {
+    const certificates = await Certification.find({ userId: req.user.id }).sort(
+      { achievementDate: -1 }
+    );
+    res.json(certificates);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};

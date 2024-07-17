@@ -89,3 +89,49 @@ exports.startCall = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+// Get all chat rooms
+exports.getAllChatRooms = async (req, res) => {
+  try {
+    const chatRooms = await ChatRoom.find()
+      .populate("members", "username")
+      .populate("createdBy", "username");
+    res.json(chatRooms);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};
+
+// Get chat room details
+exports.getChatRoomDetails = async (req, res) => {
+  try {
+    const chatRoom = await ChatRoom.findById(req.params.id)
+      .populate("members", "username")
+      .populate("createdBy", "username");
+    if (!chatRoom) {
+      return res.status(404).json({ msg: "Chat room not found" });
+    }
+    res.json(chatRoom);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};
+
+// Join a chat room
+exports.joinChatRoom = async (req, res) => {
+  try {
+    const chatRoom = await ChatRoom.findOne({ code: req.body.code });
+    if (!chatRoom) {
+      return res.status(404).json({ msg: "Chat room not found" });
+    }
+    if (!chatRoom.members.includes(req.user.id)) {
+      chatRoom.members.push(req.user.id);
+      await chatRoom.save();
+    }
+    res.json(chatRoom);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};

@@ -33,5 +33,6 @@ const auth = require("../middleware/auth");
  *         description: Unauthorized
  */
 router.post("/add", auth, certificationController.addCertification);
+router.get("/", auth, certificationController.getCertificates);
 
 module.exports = router;

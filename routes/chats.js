@@ -75,5 +75,6 @@ router.post(
  *         description: No chat messages found
  */
 router.get("/:userId", auth, chatController.getChatHistory);
+router.get("/", auth, chatController.getAllChats);
 
 module.exports = router;

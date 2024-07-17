@@ -36,5 +36,8 @@ router.post(
   [auth, [check("recipientId", "Recipient ID is required").not().isEmpty()]],
   friendRequestController.sendFriendRequest
 );
+router.get("/", auth, friendRequestController.viewFriendRequests);
+router.put("/:id/accept", auth, friendRequestController.acceptFriendRequest);
+router.put("/:id/reject", auth, friendRequestController.rejectFriendRequest);
 
 module.exports = router;
