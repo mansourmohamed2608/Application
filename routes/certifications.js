@@ -33,6 +33,27 @@ const auth = require("../middleware/auth");
  *         description: Unauthorized
  */
 router.post("/add", auth, certificationController.addCertification);
+
+/**
+ * @swagger
+ * /api/certifications:
+ *   get:
+ *     summary: Get all certificates for a user
+ *     tags: [Certifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Certificates retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Certification'
+ *       401:
+ *         description: Unauthorized
+ */
 router.get("/", auth, certificationController.getCertificates);
 
 module.exports = router;

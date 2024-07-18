@@ -1,7 +1,6 @@
 const Notification = require("../models/Notification");
 const { validationResult } = require("express-validator");
 
-// Add a notification
 exports.addNotification = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -24,7 +23,6 @@ exports.addNotification = async (req, res) => {
   }
 };
 
-// Get notifications for a user
 exports.getNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({ userId: req.user.id }).sort(
@@ -37,7 +35,6 @@ exports.getNotifications = async (req, res) => {
   }
 };
 
-// Mark notification as read
 exports.markAsRead = async (req, res) => {
   try {
     const notification = await Notification.findById(req.params.id);
@@ -58,7 +55,7 @@ exports.markAsRead = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
-// Get unread notifications for a user
+
 exports.getUnreadNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({
@@ -72,7 +69,6 @@ exports.getUnreadNotifications = async (req, res) => {
   }
 };
 
-// Get read notifications for a user
 exports.getReadNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({

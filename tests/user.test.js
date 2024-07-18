@@ -24,9 +24,11 @@ describe("User Registration and Login", () => {
 
   test("should register a new user", async () => {
     const response = await request(app).post("/api/users/register").send({
-      username: "uniqueUser1",
       email: "unique1@example.com",
+      phone: "1234567890",
+      name: "Unique User1",
       password: "password123",
+      confirmPassword: "password123",
     });
 
     expect(response.statusCode).toBe(200);
@@ -35,15 +37,18 @@ describe("User Registration and Login", () => {
 
   test("should fail to register a user with an existing email", async () => {
     await User.create({
-      username: "uniqueUser2",
       email: "unique2@example.com",
+      phone: "1234567890",
+      name: "Unique User2",
       password: "password123",
     });
 
     const response = await request(app).post("/api/users/register").send({
-      username: "uniqueUser3",
       email: "unique2@example.com",
+      phone: "1234567890",
+      name: "Unique User3",
       password: "password123",
+      confirmPassword: "password123",
     });
 
     expect(response.statusCode).toBe(400);
@@ -52,8 +57,9 @@ describe("User Registration and Login", () => {
 
   test("should login an existing user", async () => {
     const user = await User.create({
-      username: "uniqueUser4",
       email: "unique4@example.com",
+      phone: "1234567890",
+      name: "Unique User4",
       password: await bcrypt.hash("password123", 10),
     });
 

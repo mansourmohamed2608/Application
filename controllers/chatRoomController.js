@@ -2,24 +2,24 @@ const ChatRoom = require("../models/ChatRoom");
 const Notification = require("../models/Notification");
 const { validationResult } = require("express-validator");
 
-// Create a chat room
 exports.createChatRoom = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
 
-  const { name, members } = req.body;
+  const { name, code, createdBy, members } = req.body;
 
   try {
-    const newChatRoom = new ChatRoom({
+    const chatRoom = new ChatRoom({
       name,
+      code,
+      createdBy,
       members,
     });
 
-    const chatRoom = await newChatRoom.save();
+    await chatRoom.save();
 
-    // Notify all members about the new chat room
     for (const memberId of members) {
       const newNotification = new Notification({
         userId: memberId,
@@ -35,7 +35,6 @@ exports.createChatRoom = async (req, res) => {
   }
 };
 
-// Add a user to a chat room
 exports.addUserToChatRoom = async (req, res) => {
   const { chatRoomId, userId } = req.body;
 
@@ -49,7 +48,6 @@ exports.addUserToChatRoom = async (req, res) => {
       chatRoom.members.push(userId);
       await chatRoom.save();
 
-      // Notify the user about being added to the chat room
       const newNotification = new Notification({
         userId,
         message: `You have been added to the chat room: ${chatRoom.name}`,
@@ -64,7 +62,6 @@ exports.addUserToChatRoom = async (req, res) => {
   }
 };
 
-// Start a chat room call
 exports.startCall = async (req, res) => {
   const { chatRoomId } = req.body;
 
@@ -74,7 +71,6 @@ exports.startCall = async (req, res) => {
       return res.status(404).json({ msg: "Chat room not found" });
     }
 
-    // Notify all members about the start of the call
     for (const memberId of chatRoom.members) {
       const newNotification = new Notification({
         userId: memberId,
@@ -89,7 +85,7 @@ exports.startCall = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
-// Get all chat rooms
+
 exports.getAllChatRooms = async (req, res) => {
   try {
     const chatRooms = await ChatRoom.find()
@@ -102,7 +98,6 @@ exports.getAllChatRooms = async (req, res) => {
   }
 };
 
-// Get chat room details
 exports.getChatRoomDetails = async (req, res) => {
   try {
     const chatRoom = await ChatRoom.findById(req.params.id)
@@ -118,7 +113,6 @@ exports.getChatRoomDetails = async (req, res) => {
   }
 };
 
-// Join a chat room
 exports.joinChatRoom = async (req, res) => {
   try {
     const chatRoom = await ChatRoom.findOne({ code: req.body.code });

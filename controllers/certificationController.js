@@ -2,7 +2,6 @@ const Notification = require("../models/Notification");
 const Certification = require("../models/Certification");
 const { validationResult } = require("express-validator");
 
-// Add a certification
 exports.addCertification = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -21,7 +20,6 @@ exports.addCertification = async (req, res) => {
 
     const certification = await newCertification.save();
 
-    // Add notification for the user
     const newNotification = new Notification({
       userId: req.user.id,
       message: `New certification added: ${title}`,
@@ -34,7 +32,7 @@ exports.addCertification = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
-// Get all certificates for a user
+
 exports.getCertificates = async (req, res) => {
   try {
     const certificates = await Certification.find({ userId: req.user.id }).sort(

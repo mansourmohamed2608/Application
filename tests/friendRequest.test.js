@@ -9,16 +9,22 @@ jest.setTimeout(20000); // 20 seconds
 describe("Friend Requests", () => {
   let token;
   let recipient;
+  let emailCount = 0;
 
   beforeAll(async () => {
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
+  });
 
+  beforeEach(async () => {
+    emailCount++;
     const user = new User({
       username: "testuser",
-      email: "test@example.com",
+      email: `test${emailCount}@example.com`,
+      phone: "1234567890",
+      name: "Test User",
       password: "password123",
     });
 
@@ -26,7 +32,9 @@ describe("Friend Requests", () => {
 
     recipient = new User({
       username: "recipient",
-      email: "recipient@example.com",
+      email: `recipient${emailCount}@example.com`,
+      phone: "0987654321",
+      name: "Recipient User",
       password: "password123",
     });
 
@@ -37,18 +45,19 @@ describe("Friend Requests", () => {
     });
   });
 
+  afterEach(async () => {
+    await User.deleteMany();
+    await FriendRequest.deleteMany();
+  });
+
   afterAll(async () => {
     await mongoose.connection.close();
   });
 
-  afterEach(async () => {
-    await FriendRequest.deleteMany();
-  });
-
   test("should send a friend request", async () => {
     const response = await request(app)
-      .post("/api/friend-requests/send")
-      .set("x-auth-token", token)
+      .post("/api/friend-requests/")
+      .set("Authorization", `Bearer ${token}`)
       .send({
         recipientId: recipient.id,
       });
@@ -58,7 +67,7 @@ describe("Friend Requests", () => {
   });
 
   test("should return 401 if no token is provided", async () => {
-    const response = await request(app).post("/api/friend-requests/send").send({
+    const response = await request(app).post("/api/friend-requests/").send({
       recipientId: recipient.id,
     });
 

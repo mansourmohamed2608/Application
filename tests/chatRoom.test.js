@@ -8,16 +8,22 @@ jest.setTimeout(20000); // 20 seconds
 
 describe("Chat Rooms", () => {
   let token;
+  let emailCount = 0;
 
   beforeAll(async () => {
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
+  });
 
+  beforeEach(async () => {
+    emailCount++;
     const user = new User({
       username: "testuser",
-      email: "test@example.com",
+      email: `test${emailCount}@example.com`,
+      phone: "1234567890",
+      name: "Test User",
       password: "password123",
     });
 
@@ -28,21 +34,24 @@ describe("Chat Rooms", () => {
     });
   });
 
-  afterAll(async () => {
-    await mongoose.connection.close();
+  afterEach(async () => {
+    await User.deleteMany();
+    await ChatRoom.deleteMany();
   });
 
-  afterEach(async () => {
-    await ChatRoom.deleteMany();
+  afterAll(async () => {
+    await mongoose.connection.close();
   });
 
   test("should create a chat room", async () => {
     const response = await request(app)
       .post("/api/chat-rooms/create")
-      .set("x-auth-token", token)
+      .set("Authorization", `Bearer ${token}`)
       .send({
         name: "Test Room",
         code: "12345",
+        createdBy: new mongoose.Types.ObjectId(), // Ensure createdBy field is provided
+        members: [],
       });
 
     expect(response.statusCode).toBe(200);
@@ -53,6 +62,8 @@ describe("Chat Rooms", () => {
     const response = await request(app).post("/api/chat-rooms/create").send({
       name: "Test Room",
       code: "12345",
+      createdBy: new mongoose.Types.ObjectId(), // Ensure createdBy field is provided
+      members: [],
     });
 
     expect(response.statusCode).toBe(401);

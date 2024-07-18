@@ -1,6 +1,5 @@
 const express = require("express");
 const router = express.Router();
-const { check } = require("express-validator");
 const chatController = require("../controllers/chatController");
 const auth = require("../middleware/auth");
 
@@ -9,43 +8,43 @@ const auth = require("../middleware/auth");
  * /api/chats/send:
  *   post:
  *     summary: Send a message
- *     tags: [Chats]
  *     security:
  *       - bearerAuth: []
+ *     tags:
+ *       - Chats
  *     requestBody:
  *       required: true
  *       content:
  *         application/json:
  *           schema:
  *             type: object
+ *             required:
+ *               - recipientId
+ *               - text
+ *               - date
  *             properties:
  *               recipientId:
  *                 type: string
  *               text:
  *                 type: string
+ *               date:
+ *                 type: string
+ *                 format: date
  *     responses:
  *       200:
- *         description: Message sent successfully
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/Chat'
+ *         description: Message sent
  *       400:
- *         description: Bad request
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: Recipient not found
+ *         description: Missing fields
+ *       500:
+ *         description: Server error
  */
-router.post(
-  "/send",
-  [auth, [check("text", "Text is required").not().isEmpty()]],
-  chatController.sendMessage
-);
+router.post("/send", auth, chatController.sendMessage);
+
+module.exports = router;
 
 /**
  * @swagger
- * /api/chats/{userId}:
+ * /api/chats/history/{userId}:
  *   get:
  *     summary: Get chat history
  *     tags: [Chats]
@@ -67,14 +66,33 @@ router.post(
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/Chat'
- *       400:
- *         description: Bad request
  *       401:
  *         description: Unauthorized
  *       404:
  *         description: No chat messages found
  */
-router.get("/:userId", auth, chatController.getChatHistory);
+router.get("/history/:userId", auth, chatController.getChatHistory);
+
+/**
+ * @swagger
+ * /api/chats:
+ *   get:
+ *     summary: Get all chats
+ *     tags: [Chats]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Chats retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/Chat'
+ *       401:
+ *         description: Unauthorized
+ */
 router.get("/", auth, chatController.getAllChats);
 
 module.exports = router;

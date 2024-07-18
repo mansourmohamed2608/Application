@@ -8,16 +8,22 @@ jest.setTimeout(20000); // 20 seconds
 
 describe("Certifications", () => {
   let token;
+  let emailCount = 0;
 
   beforeAll(async () => {
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
+  });
 
+  beforeEach(async () => {
+    emailCount++;
     const user = new User({
       username: "testuser",
-      email: "test@example.com",
+      email: `test${emailCount}@example.com`,
+      phone: "1234567890",
+      name: "Test User",
       password: "password123",
     });
 
@@ -28,22 +34,25 @@ describe("Certifications", () => {
     });
   });
 
-  afterAll(async () => {
-    await mongoose.connection.close();
+  afterEach(async () => {
+    await User.deleteMany();
+    await Certification.deleteMany();
   });
 
-  afterEach(async () => {
-    await Certification.deleteMany();
+  afterAll(async () => {
+    await mongoose.connection.close();
   });
 
   test("should add a certification", async () => {
     const response = await request(app)
       .post("/api/certifications/add")
-      .set("x-auth-token", token)
+      .set("Authorization", `Bearer ${token}`)
       .send({
+        userId: new mongoose.Types.ObjectId(),
         title: "Test Certification",
         year: "2024",
         document: "path/to/document",
+        achievementDate: new Date(),
       });
 
     expect(response.statusCode).toBe(200);
@@ -52,9 +61,11 @@ describe("Certifications", () => {
 
   test("should return 401 if no token is provided", async () => {
     const response = await request(app).post("/api/certifications/add").send({
+      userId: new mongoose.Types.ObjectId(),
       title: "Test Certification",
       year: "2024",
       document: "path/to/document",
+      achievementDate: new Date(),
     });
 
     expect(response.statusCode).toBe(401);

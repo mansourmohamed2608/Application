@@ -2,7 +2,6 @@ const Notification = require("../models/Notification");
 const User = require("../models/User");
 const FriendRequest = require("../models/FriendRequest");
 
-// Send a friend request
 exports.sendFriendRequest = async (req, res) => {
   const { recipientId } = req.body;
 
@@ -19,7 +18,6 @@ exports.sendFriendRequest = async (req, res) => {
 
     const friendRequest = await newFriendRequest.save();
 
-    // Add notification for the recipient
     const newNotification = new Notification({
       userId: recipientId,
       message: `You have a new friend request from ${req.user.username}`,
@@ -32,7 +30,7 @@ exports.sendFriendRequest = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
-// View friend requests received by the user
+
 exports.viewFriendRequests = async (req, res) => {
   try {
     const friendRequests = await FriendRequest.find({
@@ -46,7 +44,6 @@ exports.viewFriendRequests = async (req, res) => {
   }
 };
 
-// Accept friend request
 exports.acceptFriendRequest = async (req, res) => {
   try {
     const friendRequest = await FriendRequest.findById(req.params.id);
@@ -68,7 +65,6 @@ exports.acceptFriendRequest = async (req, res) => {
   }
 };
 
-// Reject friend request
 exports.rejectFriendRequest = async (req, res) => {
   try {
     const friendRequest = await FriendRequest.findById(req.params.id);

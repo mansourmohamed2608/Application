@@ -3,25 +3,37 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { check, validationResult } = require("express-validator");
 
-// Register User
+/**
+ * Register User
+ * @route POST /api/users/register
+ * @access Public
+ */
 exports.registerUser = [
-  check("mobile", "Mobile number is required").not().isEmpty(),
+  check("email", "Please include a valid email").isEmail(),
+  check("phone", "Phone number is required").not().isEmpty(),
+  check("name", "Name is required").not().isEmpty(),
   check("password", "Password must be 6 or more characters").isLength({
     min: 6,
   }),
+  check("confirmPassword", "Confirm password is required").not().isEmpty(),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { mobile, password } = req.body;
+    const { email, phone, name, password, confirmPassword } = req.body;
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({ msg: "Passwords do not match" });
+    }
+
     try {
-      let user = await User.findOne({ mobile });
+      let user = await User.findOne({ email });
       if (user) {
         return res.status(400).json({ msg: "User already exists" });
       }
-      user = new User({ mobile, password });
+      user = new User({ email, phone, name, password });
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(password, salt);
       await user.save();
@@ -43,9 +55,13 @@ exports.registerUser = [
   },
 ];
 
-// Login User
+/**
+ * Login User
+ * @route POST /api/users/login
+ * @access Public
+ */
 exports.loginUser = [
-  check("mobile", "Please include a valid mobile number").not().isEmpty(),
+  check("email", "Please include a valid email").isEmail(),
   check("password", "Password is required").exists(),
   async (req, res) => {
     const errors = validationResult(req);
@@ -53,9 +69,9 @@ exports.loginUser = [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { mobile, password } = req.body;
+    const { email, password } = req.body;
     try {
-      let user = await User.findOne({ mobile });
+      let user = await User.findOne({ email });
       if (!user) {
         return res.status(400).json({ msg: "Invalid Credentials" });
       }
@@ -82,7 +98,11 @@ exports.loginUser = [
   },
 ];
 
-// Get online friends
+/**
+ * Get Online Friends
+ * @route GET /api/users/online-friends
+ * @access Private
+ */
 exports.getOnlineFriends = async (req, res) => {
   try {
     const friends = await User.find({
@@ -95,7 +115,12 @@ exports.getOnlineFriends = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
-// Get user details
+
+/**
+ * Get User Details
+ * @route GET /api/users/details
+ * @access Private
+ */
 exports.getUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select(

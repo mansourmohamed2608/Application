@@ -2,16 +2,15 @@ const express = require("express");
 const connectDB = require("./config/db");
 const app = express();
 const morgan = require("morgan");
-const mongoose = require("mongoose");
-const { Server } = require("socket.io");
-const { handleSignaling } = require("./controllers/chatController");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-const swaggerDocs = require("./swagger");
 const mongoSanitize = require("express-mongo-sanitize");
 const xss = require("xss-clean");
 require("dotenv").config();
 const swaggerUi = require("swagger-ui-express");
+const swaggerDocs = require("./swagger"); // Ensure you have swagger setup
+const http = require("http");
+const { Server } = require("socket.io");
 
 // Connect Database
 connectDB();
@@ -20,6 +19,8 @@ connectDB();
 app.use(express.json({ extended: false }));
 app.use(morgan("combined"));
 app.use(helmet());
+app.use(mongoSanitize());
+app.use(xss());
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -35,8 +36,6 @@ app.use("/api/friend-requests", require("./routes/friendRequests"));
 app.use("/api/chat-rooms", require("./routes/chatRooms"));
 app.use("/api/certifications", require("./routes/certifications"));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-app.use(mongoSanitize());
-app.use(xss());
 
 // Error Handling Middleware
 app.use(require("./middleware/errorHandler"));
@@ -62,6 +61,6 @@ io.on("connection", (socket) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server started on port ${PORT}`));
 
 module.exports = app;

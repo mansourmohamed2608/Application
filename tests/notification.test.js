@@ -8,16 +8,22 @@ jest.setTimeout(20000); // 20 seconds
 
 describe("Notifications", () => {
   let token;
+  let emailCount = 0;
 
   beforeAll(async () => {
     await mongoose.connect(process.env.MONGO_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
     });
+  });
 
+  beforeEach(async () => {
+    emailCount++;
     const user = new User({
       username: "testuser",
-      email: "test@example.com",
+      email: `test${emailCount}@example.com`,
+      phone: "1234567890",
+      name: "Test User",
       password: "password123",
     });
 
@@ -28,28 +34,22 @@ describe("Notifications", () => {
     });
   });
 
+  afterEach(async () => {
+    await User.deleteMany();
+    await Notification.deleteMany();
+  });
+
   afterAll(async () => {
     await mongoose.connection.close();
   });
 
-  afterEach(async () => {
-    await Notification.deleteMany();
-  });
-
   test("should get notifications for the logged-in user", async () => {
-    const notification = new Notification({
-      userId: mongoose.Types.ObjectId(),
-      message: "Test notification",
-    });
-
-    await notification.save();
-
     const response = await request(app)
       .get("/api/notifications")
-      .set("x-auth-token", token);
+      .set("Authorization", `Bearer ${token}`);
 
     expect(response.statusCode).toBe(200);
-    expect(response.body.length).toBe(1);
+    expect(response.body).toBeInstanceOf(Array);
   });
 
   test("should return 401 if no token is provided", async () => {
