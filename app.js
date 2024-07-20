@@ -1,7 +1,10 @@
 const express = require("express");
 const connectDB = require("./config/db");
 const app = express();
-app.set('trust proxy', true);
+
+// Set trust proxy before any middleware
+app.set("trust proxy", true);
+
 const morgan = require("morgan");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -20,10 +23,10 @@ connectDB();
 // Init Middleware
 app.use(express.json({ extended: false }));
 app.use(morgan("combined"));
-
 app.use(helmet());
 app.use(mongoSanitize());
 app.use(xss());
+
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
