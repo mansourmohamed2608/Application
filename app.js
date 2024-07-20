@@ -1,6 +1,7 @@
 const express = require("express");
 const connectDB = require("./config/db");
 const app = express();
+app.set('trust proxy', true);
 const morgan = require("morgan");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -11,6 +12,7 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerDocs = require("./swagger"); // Ensure you have swagger setup
 const http = require("http");
 const { Server } = require("socket.io");
+const path = require("path");
 
 // Connect Database
 connectDB();
@@ -18,6 +20,7 @@ connectDB();
 // Init Middleware
 app.use(express.json({ extended: false }));
 app.use(morgan("combined"));
+
 app.use(helmet());
 app.use(mongoSanitize());
 app.use(xss());
@@ -27,6 +30,9 @@ app.use(
     max: 100, // limit each IP to 100 requests per windowMs
   })
 );
+
+// Serve static files
+app.use(express.static(path.join(__dirname, "public")));
 
 // Define Routes
 app.use("/api/users", require("./routes/users"));

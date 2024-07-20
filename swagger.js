@@ -11,7 +11,7 @@ const swaggerOptions = {
     },
     servers: [
       {
-        url: "http://localhost:5000",
+        url: process.env.BASE_URL || "http://localhost:5000", // Dynamic URL
       },
     ],
     components: {

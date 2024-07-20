@@ -118,6 +118,10 @@ exports.getOnlineFriends = async (req, res) => {
 
 /**
  * Get User Details
+ * 
+
+
+/...//.
  * @route GET /api/users/details
  * @access Private
  */
