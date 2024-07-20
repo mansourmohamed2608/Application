@@ -1,10 +1,6 @@
 const express = require("express");
 const connectDB = require("./config/db");
 const app = express();
-
-// Set trust proxy before any middleware
-app.set("trust proxy", true);
-
 const morgan = require("morgan");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
@@ -20,8 +16,10 @@ const path = require("path");
 // Connect Database
 connectDB();
 
-// Init Middleware
-app.use(express.json({ extended: false }));
+// Set trust proxy to a specific value (e.g., 1 for Vercel)
+app.set("trust proxy", 1);
+
+app.use(express.json());
 app.use(morgan("combined"));
 app.use(helmet());
 app.use(mongoSanitize());
@@ -31,6 +29,9 @@ app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // limit each IP to 100 requests per windowMs
+    keyGenerator: (req) => {
+      return req.ip;
+    },
   })
 );
 
