@@ -16,22 +16,16 @@ const path = require("path");
 // Connect Database
 connectDB();
 
-// Set trust proxy to a specific value (e.g., 1 for Vercel)
-app.set("trust proxy", 1);
-
-app.use(express.json());
+// Init Middleware
+app.use(express.json({ extended: false }));
 app.use(morgan("combined"));
 app.use(helmet());
 app.use(mongoSanitize());
 app.use(xss());
-
 app.use(
   rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
     max: 100, // limit each IP to 100 requests per windowMs
-    keyGenerator: (req) => {
-      return req.ip;
-    },
   })
 );
 
@@ -58,15 +52,24 @@ const io = new Server(server, {
   },
 });
 
+const onlineUsers = {}; // Key: user ID, Value: socket ID
+
 io.on("connection", (socket) => {
   console.log("User connected:", socket.id);
 
-  socket.on("message", (message) => {
-    handleSignaling(io, socket, message);
+  socket.on("userOnline", (userId) => {
+    onlineUsers[userId] = socket.id;
+    console.log("User is online:", userId);
   });
 
   socket.on("disconnect", () => {
-    console.log("User disconnected:", socket.id);
+    for (const [userId, socketId] of Object.entries(onlineUsers)) {
+      if (socketId === socket.id) {
+        delete onlineUsers[userId];
+        console.log("User disconnected:", userId);
+        break;
+      }
+    }
   });
 });
 

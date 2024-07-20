@@ -29,7 +29,7 @@ exports.registerUser = [
     }
 
     try {
-      let user = await User.findOne({ email });
+      let user = await User.findOne({ phone });
       if (user) {
         return res.status(400).json({ msg: "User already exists" });
       }
@@ -61,7 +61,7 @@ exports.registerUser = [
  * @access Public
  */
 exports.loginUser = [
-  check("email", "Please include a valid email").isEmail(),
+  check("phone", "Please include a valid phone number").not().isEmpty(),
   check("password", "Password is required").exists(),
   async (req, res) => {
     const errors = validationResult(req);
@@ -69,9 +69,10 @@ exports.loginUser = [
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { email, password } = req.body;
+    const { phone, password } = req.body;
     try {
-      let user = await User.findOne({ email });
+      // Find user by phone number
+      let user = await User.findOne({ phone });
       if (!user) {
         return res.status(400).json({ msg: "Invalid Credentials" });
       }
@@ -105,23 +106,19 @@ exports.loginUser = [
  */
 exports.getOnlineFriends = async (req, res) => {
   try {
-    const friends = await User.find({
-      status: "online",
-      _id: { $ne: req.user.id },
-    }).select("username status");
-    res.json(friends);
+    const user = await User.findById(req.user.id).populate("friends");
+    const onlineFriends = user.friends.filter(
+      (friend) => onlineUsers[friend.id]
+    );
+
+    res.json(onlineFriends);
   } catch (err) {
     console.error(err.message);
-    res.status(500).send("Server error");
+    res.status(500).send("Server Error");
   }
 };
-
 /**
  * Get User Details
- * 
-
-
-/...//.
  * @route GET /api/users/details
  * @access Private
  */

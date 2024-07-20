@@ -66,20 +66,19 @@ router.post("/login", userController.loginUser);
  * /api/users/online-friends:
  *   get:
  *     summary: Get online friends
- *     tags: [Users]
  *     security:
  *       - bearerAuth: []
+ *     tags:
+ *       - Users
  *     responses:
  *       200:
- *         description: Online friends retrieved successfully
+ *         description: A list of online friends
  *         content:
  *           application/json:
  *             schema:
  *               type: array
  *               items:
  *                 $ref: '#/components/schemas/User'
- *       401:
- *         description: Unauthorized
  */
 router.get("/online-friends", auth, userController.getOnlineFriends);
 
