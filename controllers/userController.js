@@ -2,6 +2,7 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { check, validationResult } = require("express-validator");
+const { onlineUsers } = require("../app"); // Import the onlineUsers object from app.js
 
 /**
  * Register User
@@ -117,6 +118,7 @@ exports.getOnlineFriends = async (req, res) => {
     res.status(500).send("Server Error");
   }
 };
+
 /**
  * Get User Details
  * @route GET /api/users/details
@@ -125,7 +127,7 @@ exports.getOnlineFriends = async (req, res) => {
 exports.getUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select(
-      "firstName lastName universityName mutualFriends info address"
+      "firstName lastName universityName friends info address"
     );
     res.json(user);
   } catch (err) {
