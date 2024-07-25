@@ -1,8 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const passport = require("passport");
-require("../controllers/GoogleAuthController");
-const { logout, GJWT } = require("../controllers/GoogleAuthController");
+require("../controllers/googleController");
+const { logout, GJWT } = require("../controllers/googleController");
 const verifyGJWT = require("../middleware/googleJWT");
 
 // Trigger Google Authentication
