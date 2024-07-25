@@ -41,6 +41,7 @@ app.use("/api/friend-requests", require("./routes/friendRequests"));
 app.use("/api/chat-rooms", require("./routes/chatRooms"));
 app.use("/api/certifications", require("./routes/certifications"));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+app.use("/", require("./routes/google"));
 
 // Error Handling Middleware
 app.use(require("./middleware/errorHandler"));
