@@ -12,6 +12,10 @@
       "dest": "/app.js"
     },
     {
+      "src": "/auth/google/callback",
+      "dest": "/app.js"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/app.js"
     },
