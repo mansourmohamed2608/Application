@@ -2,7 +2,7 @@ const User = require("../models/User");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { check, validationResult } = require("express-validator");
-const { onlineUsers } = require("../app"); // Import the onlineUsers object from app.js
+const { getOnlineUsers } = require("../socket"); // Import the function to get online users
 
 /**
  * Register User
@@ -108,6 +108,7 @@ exports.loginUser = [
 exports.getOnlineFriends = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate("friends");
+    const onlineUsers = getOnlineUsers(); // Get the current state of online users
     const onlineFriends = user.friends.filter(
       (friend) => onlineUsers[friend.id]
     );

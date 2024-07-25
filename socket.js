@@ -47,4 +47,9 @@ const setupSocket = (server) => {
   return io;
 };
 
-module.exports = { setupSocket, onlineUsers };
+// Function to get the current state of onlineUsers
+const getOnlineUsers = () => {
+  return onlineUsers;
+};
+
+module.exports = { setupSocket, getOnlineUsers };
