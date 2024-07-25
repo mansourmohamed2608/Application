@@ -12,7 +12,7 @@
       "dest": "/app.js"
     },
     {
-      "src": "/auth/google/callback/(.*)",
+      "src": "/auth/google/callback",
       "dest": "/app.js"
     },
     {
