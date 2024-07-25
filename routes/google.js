@@ -43,7 +43,7 @@ router.get("/auth/google/callback", (req, res, next) => {
 
       res.cookie("accesstoken", accessToken, { httpOnly: true, secure: true });
       res.redirect(
-        `https://https://mobile-app-backend-woad.vercel.app/?y=${accessToken}&username=${user.name}&userid=${user.id}&profileimg=${user.profilePicture}`
+        `https://mobile-app-backend-woad.vercel.app/?y=${accessToken}&username=${user.name}&userid=${user.id}&profileimg=${user.profilePicture}`
       );
     });
   })(req, res, next);
