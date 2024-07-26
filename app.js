@@ -1,5 +1,7 @@
 const express = require("express");
 const connectDB = require("./config/db");
+const session = require("express-session");
+const passport = require("passport");
 const app = express();
 const morgan = require("morgan");
 const helmet = require("helmet");
@@ -31,6 +33,20 @@ app.use(
 // Serve static files
 app.use(express.static(path.join(__dirname, "public")));
 
+// Express session middleware
+app.use(
+  session({
+    secret: "your_secret_key", // Replace with your secret key
+    resave: false,
+    saveUninitialized: true,
+    cookie: { secure: false }, // Set to true if using https
+  })
+);
+
+// Passport middleware
+app.use(passport.initialize());
+app.use(passport.session());
+
 // Define Routes
 app.use("/api/users", require("./routes/users"));
 app.use("/api/notifications", require("./routes/notifications"));
@@ -39,7 +55,7 @@ app.use("/api/friend-requests", require("./routes/friendRequests"));
 app.use("/api/chat-rooms", require("./routes/chatRooms"));
 app.use("/api/certifications", require("./routes/certifications"));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
-app.use("", require("./routes/google"));
+app.use("/", require("./routes/google")); // Ensure this is correct
 
 // Error Handling Middleware
 app.use(require("./middleware/errorHandler"));
