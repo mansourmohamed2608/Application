@@ -26,11 +26,10 @@ router.get("/auth/google/callback", (req, res, next) => {
       });
     }
 
-    req.login(user, { session: true }, (err) => {
+    req.login(user, { session: false }, (err) => {
       if (err) {
         return next(err);
       }
-      req.session.userId = user.id;
 
       const accessToken = user.accessToken;
 
@@ -41,10 +40,15 @@ router.get("/auth/google/callback", (req, res, next) => {
         });
       }
 
-      res.cookie("accesstoken", accessToken, { httpOnly: true, secure: true });
-      res.redirect(
-        `https://mobile-app-backend-woad.vercel.app/?y=${accessToken}&username=${user.name}&userid=${user.id}&profileimg=${user.profilePicture}`
-      );
+      res.json({
+        token: accessToken,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          profilePicture: user.profilePicture,
+        },
+      });
     });
   })(req, res, next);
 });
