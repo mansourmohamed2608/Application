@@ -40,15 +40,7 @@ router.get("/auth/google/callback", (req, res, next) => {
         });
       }
 
-      res.json({
-        token: accessToken,
-        user: {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          profilePicture: user.profilePicture,
-        },
-      });
+      res.json({ accessToken });
     });
   })(req, res, next);
 });
