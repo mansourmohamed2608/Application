@@ -31,7 +31,7 @@ router.get("/auth/google/callback", (req, res, next) => {
         return next(err);
       }
 
-      const accessToken = user.accessToken;
+      const token = user.accessToken;
 
       if (!accessToken) {
         return res.status(500).json({
@@ -40,7 +40,7 @@ router.get("/auth/google/callback", (req, res, next) => {
         });
       }
 
-      res.json({ accessToken });
+      res.json({ token });
     });
   })(req, res, next);
 });
