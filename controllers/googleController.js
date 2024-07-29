@@ -2,6 +2,7 @@ const passport = require("passport");
 const GoogleStrategy = require("passport-google-oauth20").Strategy;
 const axios = require("axios");
 const User = require("../models/User"); // Assuming User model is in ../models/User
+const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
 passport.use(
@@ -10,7 +11,7 @@ passport.use(
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       callbackURL:
-        "https://mobile-app-backend-woad.vercel.app/auth/google/callback", // Update to match your new website
+        "https://mobile-app-backend-woad.vercel.app/auth/google/callback",
       passReqToCallback: true,
     },
     async (req, accessToken, refreshToken, profile, done) => {
@@ -42,13 +43,22 @@ passport.use(
   )
 );
 
-const extractToken = (req) => {
-  const auth = req.headers.auth;
-  return auth;
-};
+passport.serializeUser((user, done) => {
+  done(null, user.id);
+});
+
+passport.deserializeUser(async (id, done) => {
+  try {
+    const user = await User.findById(id);
+    done(null, user);
+  } catch (error) {
+    console.error("Error deserializing user:", error);
+    done(error, null);
+  }
+});
 
 const logout = async (req, res) => {
-  const token = extractToken(req);
+  const token = req.header("Authorization").replace("Bearer ", "");
   if (!token) {
     return res.status(401).json({ message: "No token provided" });
   }
@@ -68,56 +78,24 @@ const logout = async (req, res) => {
   }
 };
 
-const validateTokenWithGoogleAndDatabase = async (token) => {
-  try {
-    const googleResponse = await axios.get(
-      `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${token}`
-    );
-    const googleData = googleResponse.data;
-    const user = await User.findOne({ googleId: googleData.sub });
-
-    if (!user) {
-      throw new Error("No matching user found or token mismatch.");
-    }
-
-    return user;
-  } catch (error) {
-    console.error(
-      "Error verifying token with Google or fetching user from DB:",
-      error
-    );
-    throw new Error("Token verification failed or user not found.");
-  }
-};
-
 const GJWT = async (req, res, next) => {
+  const token = req.header("Authorization").replace("Bearer ", "");
+
+  if (!token) {
+    return res.status(401).json({ message: "No token provided." });
+  }
+
   try {
-    const token = extractToken(req);
-
-    if (!token) {
-      return res.status(401).json({ message: "No token provided." });
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    if (!user) {
+      throw new Error("User not found.");
     }
-
-    const user = await validateTokenWithGoogleAndDatabase(token);
     req.user = user;
     next();
   } catch (error) {
     return res.status(401).json({ message: "Unauthorized: " + error.message });
   }
 };
-
-passport.serializeUser((user, done) => {
-  done(null, user.id);
-});
-
-passport.deserializeUser(async (id, done) => {
-  try {
-    const user = await User.findById(id);
-    done(null, user);
-  } catch (error) {
-    console.error("Error deserializing user:", error);
-    done(error, null);
-  }
-});
 
 module.exports = { passport, logout, GJWT };

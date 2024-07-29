@@ -1,9 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const passport = require("passport");
-require("../controllers/googleController");
+const jwt = require("jsonwebtoken");
 const { logout, GJWT } = require("../controllers/googleController");
-const verifyGJWT = require("../middleware/googleJWT");
 
 // Trigger Google Authentication
 router.get(
@@ -13,7 +12,7 @@ router.get(
 
 // Google Auth Callback
 router.get("/auth/google/callback", (req, res, next) => {
-  passport.authenticate("google", (err, user, info) => {
+  passport.authenticate("google", { session: false }, (err, user, info) => {
     if (err) {
       return res
         .status(500)
@@ -26,21 +25,19 @@ router.get("/auth/google/callback", (req, res, next) => {
       });
     }
 
-    req.login(user, { session: false }, (err) => {
-      if (err) {
-        return next(err);
-      }
+    const payload = { id: user.id };
+    const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
-      const token = user.accessToken;
-
-      if (!accessToken) {
-        return res.status(500).json({
-          error: "Authentication error",
-          details: "No access token received.",
-        });
-      }
-
-      res.json({ token });
+    res.json({
+      token: accessToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        profilePicture: user.profilePicture,
+      },
     });
   })(req, res, next);
 });
@@ -50,16 +47,12 @@ router.get("/auth/google/failure", (req, res) => {
   res.status(401).send("Authentication failed");
 });
 
-// Successful authentication route, if needed separately
-router.get("/auth/google/success", (req, res) => {
-  if (req.user && req.user.name) {
-    res.status(200).send(`Hello ${req.user.name}!`);
-  } else {
-    res.status(400).send("No user information available.");
-  }
-});
-
+// Logout route
 router.get("/logout", logout);
-router.get("/checkaccesstoken", GJWT, verifyGJWT);
+
+// Check Access Token route
+router.get("/checkaccesstoken", GJWT, (req, res) => {
+  res.status(200).json({ message: "Token is valid", user: req.user });
+});
 
 module.exports = router;
