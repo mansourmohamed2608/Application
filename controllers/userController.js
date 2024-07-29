@@ -37,6 +37,7 @@ exports.registerUser = [
       user = new User({ email, phone, name, password });
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(password, salt);
+      console.log(`Hashed Password: ${user.password}`); // Debugging print
       await user.save();
 
       const payload = { user: { id: user.id } };
@@ -113,6 +114,68 @@ exports.loginUser = [
 ];
 
 /**
+ * Update User Details
+ * @route PUT /api/users/update-details
+ * @access Private
+ */
+exports.updateUserDetails = [
+  check("firstName", "First name is required").not().isEmpty(),
+  check("lastName", "Last name is required").not().isEmpty(),
+  check("birthDate", "Birth date is required").not().isEmpty(),
+  check("gender", "Gender is required").not().isEmpty(),
+  check("educationLevel", "Education level is required").not().isEmpty(),
+  check("major", "Major is required").not().isEmpty(),
+  check("submajor", "Submajor is required").not().isEmpty(),
+  check("country", "Country is required").not().isEmpty(),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const {
+      firstName,
+      lastName,
+      birthDate,
+      gender,
+      educationLevel,
+      major,
+      submajor,
+      country,
+      universityName,
+      info,
+      address,
+    } = req.body;
+
+    try {
+      let user = await User.findById(req.user.id);
+      if (!user) {
+        return res.status(404).json({ msg: "User not found" });
+      }
+
+      user.firstName = firstName;
+      user.lastName = lastName;
+      user.birthDate = birthDate;
+      user.gender = gender;
+      user.educationLevel = educationLevel;
+      user.major = major;
+      user.submajor = submajor;
+      user.country = country;
+      user.universityName = universityName;
+      user.info = info;
+      user.address = address;
+
+      await user.save();
+
+      res.json({ msg: "User details updated successfully" });
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send("Server error");
+    }
+  },
+];
+
+/**
  * Get Online Friends
  * @route GET /api/users/online-friends
  * @access Private
@@ -140,7 +203,7 @@ exports.getOnlineFriends = async (req, res) => {
 exports.getUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select(
-      "firstName lastName universityName friends info address"
+      "firstName lastName universityName friends info address major submajor country"
     );
     res.json(user);
   } catch (err) {

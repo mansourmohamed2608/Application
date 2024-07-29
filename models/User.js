@@ -1,18 +1,24 @@
 const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema({
-  googleId: { type: String, unique: true },
   email: { type: String, required: true, unique: true },
-  name: { type: String, required: true },
+  password: { type: String },
   profilePicture: { type: String },
-  accessToken: { type: String },
   status: { type: String, enum: ["online", "offline"], default: "offline" },
+  name: { type: String, required: true },
   universityName: { type: String },
   friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   info: { type: String },
   address: { type: String },
-  phone: { type: String },
+  phone: { type: String, required: false, unique: true },
+  firstName: { type: String },
+  lastName: { type: String },
+  birthDate: { type: Date },
+  gender: { type: String, enum: ["male", "female"] },
+  educationLevel: { type: String },
+  major: { type: String },
+  submajor: { type: String },
+  country: { type: String },
 });
 
-const User = mongoose.model("User", UserSchema);
-module.exports = User;
+module.exports = mongoose.model("User", UserSchema);

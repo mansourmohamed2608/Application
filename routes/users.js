@@ -5,6 +5,13 @@ const auth = require("../middleware/auth");
 
 /**
  * @swagger
+ * tags:
+ *   name: Users
+ *   description: User management and login
+ */
+
+/**
+ * @swagger
  * /api/users/register:
  *   post:
  *     summary: Register a new user
@@ -47,7 +54,7 @@ router.post("/register", userController.registerUser);
  *           schema:
  *             type: object
  *             properties:
- *               email:
+ *               phone:
  *                 type: string
  *               password:
  *                 type: string
@@ -63,6 +70,51 @@ router.post("/login", userController.loginUser);
 
 /**
  * @swagger
+ * /api/users/update-details:
+ *   put:
+ *     summary: Update user details
+ *     security:
+ *       - bearerAuth: []
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               birthDate:
+ *                 type: string
+ *               gender:
+ *                 type: string
+ *               educationLevel:
+ *                 type: string
+ *               major:
+ *                 type: string
+ *               submajor:
+ *                 type: string
+ *               country:
+ *                 type: string
+ *               universityName:
+ *                 type: string
+ *               info:
+ *                 type: string
+ *               address:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User details updated successfully
+ *       400:
+ *         description: Bad request
+ */
+router.put("/update-details", auth, userController.updateUserDetails);
+
+/**
+ * @swagger
  * /api/users/online-friends:
  *   get:
  *     summary: Get online friends
@@ -71,14 +123,14 @@ router.post("/login", userController.loginUser);
  *     tags:
  *       - Users
  *     responses:
- *       200:
- *         description: A list of online friends
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 $ref: '#/components/schemas/User'
+ *        200:
+ *          description: A list of online friends
+ *          content:
+ *            application/json:
+ *              schema:
+ *                type: array
+ *                items:
+ *                  $ref: '#/components/schemas/User'
  */
 router.get("/online-friends", auth, userController.getOnlineFriends);
 
