@@ -1,49 +1,59 @@
 const express = require("express");
+const router = express.Router();
+const passport = require("passport");
 const jwt = require("jsonwebtoken");
-const axios = require("axios");
-const User = require("../models/User");
+require("../controllers/googleController");
+const { logout, GJWT } = require("../controllers/googleController");
 
-const getTokenFromHeaders = (req) => {
-  const auth = req.headers.auth;
-  return auth;
-};
+// Trigger Google Authentication
+router.get(
+  "/auth/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
 
-const validateTokenWithGoogleAndDatabase = async (token) => {
-  try {
-    const googleResponse = await axios.get(
-      `https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${token}`
-    );
-    const googleData = googleResponse.data;
-    const user = await User.findOne({ googleId: googleData.sub });
-
+// Google Auth Callback
+router.get("/auth/google/callback", (req, res, next) => {
+  passport.authenticate("google", { session: false }, (err, user, info) => {
+    if (err) {
+      return res
+        .status(500)
+        .json({ error: "Authentication error", details: err });
+    }
     if (!user) {
-      throw new Error("No matching user found or token mismatch.");
+      return res.status(401).json({
+        error: "Authentication failed",
+        details: "No user information received from Google.",
+      });
     }
 
-    return user;
-  } catch (error) {
-    console.error(
-      "Error verifying token with Google or fetching user from DB:",
-      error
-    );
-    throw new Error("Token verification failed or user not found.");
-  }
-};
+    const payload = { id: user.id };
+    const accessToken = jwt.sign(payload, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
 
-const GJWT = async (req, res, next) => {
-  try {
-    const token = getTokenFromHeaders(req);
+    res.json({
+      token: accessToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        profilePicture: user.profilePicture,
+      },
+    });
+  })(req, res, next);
+});
 
-    if (!token) {
-      return res.status(401).json({ message: "No token provided." });
-    }
+// Authentication failure route
+router.get("/auth/google/failure", (req, res) => {
+  res.status(401).send("Authentication failed");
+});
 
-    const user = await validateTokenWithGoogleAndDatabase(token);
-    req.user = user;
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: "Unauthorized: " + error.message });
-  }
-};
+// Logout route
+router.get("/logout", logout);
 
-module.exports = GJWT;
+// Check Access Token route
+router.get("/checkaccesstoken", GJWT, (req, res) => {
+  res.status(200).json({ message: "Token is valid", user: req.user });
+});
+
+module.exports = router;

@@ -71,15 +71,23 @@ exports.loginUser = [
     }
 
     const { phone, password } = req.body;
+    console.log(`Phone: ${phone}, Password: ${password}`);
     try {
       // Find user by phone number
       let user = await User.findOne({ phone });
       if (!user) {
+        console.log("User not found");
         return res.status(400).json({ msg: "Invalid Credentials" });
       }
 
+      if (!user.password) {
+        console.log("User password is undefined");
+      }
+
+      console.log(`Stored Password: ${user.password}`);
       const isMatch = await bcrypt.compare(password, user.password);
       if (!isMatch) {
+        console.log("Password mismatch");
         return res.status(400).json({ msg: "Invalid Credentials" });
       }
 
@@ -89,12 +97,16 @@ exports.loginUser = [
         process.env.JWT_SECRET,
         { expiresIn: "1h" },
         (err, token) => {
-          if (err) throw err;
+          if (err) {
+            console.error(`JWT Sign Error: ${err.message}`);
+            throw err;
+          }
+          console.log(`Generated Token: ${token}`);
           res.json({ token });
         }
       );
     } catch (err) {
-      console.error(err.message);
+      console.error(`Server Error: ${err.message}`);
       res.status(500).send("Server error");
     }
   },
