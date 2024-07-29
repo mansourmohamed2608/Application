@@ -125,7 +125,7 @@ exports.updateUserDetails = [
   check("gender", "Gender is required").not().isEmpty(),
   check("educationLevel", "Education level is required").not().isEmpty(),
   check("major", "Major is required").not().isEmpty(),
-  check("submajor", "Submajor is required").not().isEmpty(),
+  check("profession", "Profession  is required").not().isEmpty(),
   check("country", "Country is required").not().isEmpty(),
   async (req, res) => {
     const errors = validationResult(req);
@@ -140,7 +140,7 @@ exports.updateUserDetails = [
       gender,
       educationLevel,
       major,
-      submajor,
+      profession,
       country,
       universityName,
       info,
@@ -159,7 +159,7 @@ exports.updateUserDetails = [
       user.gender = gender;
       user.educationLevel = educationLevel;
       user.major = major;
-      user.submajor = submajor;
+      user.profession = profession;
       user.country = country;
       user.universityName = universityName;
       user.info = info;
@@ -200,10 +200,15 @@ exports.getOnlineFriends = async (req, res) => {
  * @route GET /api/users/details
  * @access Private
  */
+/**
+ * Get User Details
+ * @route GET /api/users/details
+ * @access Private
+ */
 exports.getUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select(
-      "firstName lastName universityName friends info address major submajor country"
+      "name firstName lastName universityName friends info address major profession  country birthDate gender educationLevel profilePicture"
     );
     res.json(user);
   } catch (err) {

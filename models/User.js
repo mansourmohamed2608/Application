@@ -17,7 +17,7 @@ const UserSchema = new mongoose.Schema({
   gender: { type: String, enum: ["male", "female"] },
   educationLevel: { type: String },
   major: { type: String },
-  submajor: { type: String },
+  profession: { type: String },
   country: { type: String },
 });
 
