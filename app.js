@@ -36,10 +36,10 @@ app.use(express.static(path.join(__dirname, "public")));
 // Express session middleware
 app.use(
   session({
-    secret: process.env.SESSION_SECRET, // Use a strong secret
+    secret: process.env.SESSION_SECRET, // Use the generated secret key from .env file
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false }, // Set to true if using https
+    cookie: { secure: false }, // Set to true if using HTTPS
   })
 );
 
