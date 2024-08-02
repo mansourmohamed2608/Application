@@ -180,15 +180,15 @@ exports.updateUserDetails = [
  * @route GET /api/users/online-friends
  * @access Private
  */
-exports.getOnlineFriends = async (req, res) => {
+exports.getAllFriends = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate("friends");
-    const onlineUsers = getOnlineUsers(); // Get the current state of online users
-    const onlineFriends = user.friends.filter(
-      (friend) => onlineUsers[friend.id]
-    );
 
-    res.json(onlineFriends);
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    res.json(user.friends);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
