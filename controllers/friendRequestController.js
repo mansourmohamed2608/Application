@@ -10,9 +10,10 @@ exports.sendFriendRequest = async (req, res) => {
     if (!recipient) {
       return res.status(404).json({ msg: "Recipient not found" });
     }
-
+    const user = await User.findById(req.user.id);
     const newFriendRequest = new FriendRequest({
       sender: req.user.id,
+      senderName: user.name,
       recipient: recipientId,
     });
 
@@ -20,7 +21,7 @@ exports.sendFriendRequest = async (req, res) => {
 
     const newNotification = new Notification({
       userId: recipientId,
-      message: `You have a new friend request from ${req.user.username}`,
+      message: `You have a new friend request from ${user.name}`,
     });
     await newNotification.save();
 
