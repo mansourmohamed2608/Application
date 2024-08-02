@@ -37,7 +37,7 @@ exports.viewFriendRequests = async (req, res) => {
     const friendRequests = await FriendRequest.find({
       recipient: req.user.id,
       status: "pending",
-    }).populate("requester", "username");
+    }).populate("sender", "username name");
     res.json(friendRequests);
   } catch (err) {
     console.error(err.message);
@@ -58,6 +58,21 @@ exports.acceptFriendRequest = async (req, res) => {
 
     friendRequest.status = "accepted";
     await friendRequest.save();
+
+    // Add each user to the other's friends list
+    const recipient = await User.findById(req.user.id);
+    const sender = await User.findById(friendRequest.sender);
+
+    if (!recipient.friends.includes(sender._id)) {
+      recipient.friends.push(sender._id);
+    }
+
+    if (!sender.friends.includes(recipient._id)) {
+      sender.friends.push(recipient._id);
+    }
+
+    await recipient.save();
+    await sender.save();
 
     res.json(friendRequest);
   } catch (err) {
