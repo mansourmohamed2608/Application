@@ -37,7 +37,7 @@ exports.viewFriendRequests = async (req, res) => {
     const friendRequests = await FriendRequest.find({
       recipient: req.user.id,
       status: "pending",
-    }).populate("sender", "username name");
+    }).populate("sender", "name");
     res.json(friendRequests);
   } catch (err) {
     console.error(err.message);
