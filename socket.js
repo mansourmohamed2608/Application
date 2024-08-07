@@ -42,6 +42,11 @@ const setupSocket = (server) => {
         socket.broadcast.to(roomId).emit("user-disconnected", userId);
       });
     });
+
+    // Handle RTC signaling data
+    socket.on("rtc-signal", (data) => {
+      socket.broadcast.to(data.roomId).emit("rtc-signal", data);
+    });
   });
 
   return io;

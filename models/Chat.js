@@ -18,7 +18,21 @@ const ChatSchema = new Schema({
   },
   text: {
     type: String,
-    required: true,
+  },
+  photo: {
+    type: String,
+  },
+  video: {
+    type: String,
+  },
+  file: {
+    type: String,
+  },
+  fileName: {
+    type: String,
+  },
+  fileType: {
+    type: String,
   },
   date: {
     type: Date,

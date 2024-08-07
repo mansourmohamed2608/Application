@@ -32,7 +32,7 @@ const auth = require("../middleware/auth");
  *       401:
  *         description: Unauthorized
  */
-router.post("/add", auth, certificationController.addCertification);
+router.post("/addCertificate", auth, certificationController.addCertification);
 
 /**
  * @swagger
@@ -54,6 +54,6 @@ router.post("/add", auth, certificationController.addCertification);
  *       401:
  *         description: Unauthorized
  */
-router.get("/", auth, certificationController.getCertificates);
+router.get("/getCertificates", auth, certificationController.getCertificates);
 
 module.exports = router;
