@@ -1,9 +1,12 @@
 const mongoose = require("mongoose");
 
+const Certification = require("./Certification");
+
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String },
   profilePicture: { type: String },
+  backgroundPicture: { type: String },
   status: { type: String, enum: ["online", "offline"], default: "offline" },
   name: { type: String, required: true },
   universityName: { type: String },
@@ -19,6 +22,13 @@ const UserSchema = new mongoose.Schema({
   major: { type: String },
   profession: { type: String },
   country: { type: String },
+  socialService: { type: String },
+  friendsCount: { type: Number, default: 0 },
+  requestsCount: { type: Number, default: 0 },
+  cities: [{ type: String }],
+  certifications: [
+    { type: mongoose.Schema.Types.ObjectId, ref: "Certification" },
+  ],
+  skills: [{ type: mongoose.Schema.Types.ObjectId, ref: "Skill" }],
 });
-
 module.exports = mongoose.model("User", UserSchema);

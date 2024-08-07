@@ -206,9 +206,12 @@ exports.getOnlineFriends = async (req, res) => {
  */
 exports.getUserDetails = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select(
-      "name firstName lastName universityName friends info address major profession  country birthDate gender educationLevel profilePicture"
-    );
+    const user = await User.findById(req.user.id)
+      .select(
+        "name firstName lastName universityName friends info address major profession country birthDate gender educationLevel profilePicture certifications skills"
+      )
+      .populate("certifications");
+
     res.json(user);
   } catch (err) {
     console.error(err.message);
