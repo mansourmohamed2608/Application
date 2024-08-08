@@ -5,7 +5,7 @@ const Certification = require("./Certification");
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String },
-  profilePicture: { type: String },
+  profilePicture: { type: String }, // Ensure this line exists
   backgroundPicture: { type: String },
   status: { type: String, enum: ["online", "offline"], default: "offline" },
   name: { type: String, required: true },
@@ -31,4 +31,5 @@ const UserSchema = new mongoose.Schema({
   ],
   skills: [{ type: mongoose.Schema.Types.ObjectId, ref: "Skill" }],
 });
+
 module.exports = mongoose.model("User", UserSchema);

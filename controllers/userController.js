@@ -145,6 +145,7 @@ exports.updateUserDetails = [
       universityName,
       info,
       address,
+      profilePicture,
     } = req.body;
 
     try {
@@ -164,7 +165,7 @@ exports.updateUserDetails = [
       user.universityName = universityName;
       user.info = info;
       user.address = address;
-
+      user.profilePicture = profilePicture;
       await user.save();
 
       res.json({ msg: "User details updated successfully" });
