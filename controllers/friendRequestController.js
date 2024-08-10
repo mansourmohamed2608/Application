@@ -52,10 +52,12 @@ exports.acceptFriendRequest = async (req, res) => {
       return res.status(404).json({ msg: "Friend request not found" });
     }
 
+    // Ensure that the current user is the recipient of the friend request
     if (friendRequest.recipient.toString() !== req.user.id) {
       return res.status(401).json({ msg: "User not authorized" });
     }
 
+    // Update the friend request status to 'accepted'
     friendRequest.status = "accepted";
     await friendRequest.save();
 
@@ -65,14 +67,23 @@ exports.acceptFriendRequest = async (req, res) => {
 
     if (!recipient.friends.includes(sender._id)) {
       recipient.friends.push(sender._id);
+      recipient.friendsCount += 1; // Increment friendsCount
     }
 
     if (!sender.friends.includes(recipient._id)) {
       sender.friends.push(recipient._id);
+      sender.friendsCount += 1; // Increment friendsCount
     }
 
     await recipient.save();
     await sender.save();
+
+    // Send notification to the sender of the friend request
+    const newNotification = new Notification({
+      userId: sender._id,
+      message: `${recipient.name} has accepted your friend request.`,
+    });
+    await newNotification.save();
 
     res.json(friendRequest);
   } catch (err) {

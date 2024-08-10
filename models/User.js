@@ -1,6 +1,5 @@
 const mongoose = require("mongoose");
-
-const Certification = require("./Certification");
+const bcrypt = require("bcryptjs");
 
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
@@ -24,12 +23,32 @@ const UserSchema = new mongoose.Schema({
   country: { type: String },
   socialService: { type: String },
   friendsCount: { type: Number, default: 0 },
+  postsCount: { type: Number, default: 0 },
   requestsCount: { type: Number, default: 0 },
   cities: [{ type: String }],
   certifications: [
     { type: mongoose.Schema.Types.ObjectId, ref: "Certification" },
   ],
+  posts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }],
   skills: [{ type: mongoose.Schema.Types.ObjectId, ref: "Skill" }],
+  resetToken: String,
+  resetTokenExpiry: Date,
+});
+
+// Virtual for user's age
+UserSchema.virtual("age").get(function () {
+  if (!this.birthDate) return null;
+  const ageDifMs = Date.now() - this.birthDate.getTime();
+  const ageDate = new Date(ageDifMs);
+  return Math.abs(ageDate.getUTCFullYear() - 1970);
+});
+
+// Pre-save hook for hashing passwords
+UserSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  const salt = await bcrypt.genSalt(10);
+  this.password = await bcrypt.hash(this.password, salt);
+  next();
 });
 
 module.exports = mongoose.model("User", UserSchema);

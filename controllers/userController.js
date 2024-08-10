@@ -3,7 +3,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const { check, validationResult } = require("express-validator");
 const { getOnlineUsers } = require("../socket"); // Import the function to get online users
-
+const multer = require("multer");
+const path = require("path");
 /**
  * Register User
  * @route POST /api/users/register
@@ -145,7 +146,6 @@ exports.updateUserDetails = [
       universityName,
       info,
       address,
-      profilePicture,
     } = req.body;
 
     try {
@@ -165,7 +165,6 @@ exports.updateUserDetails = [
       user.universityName = universityName;
       user.info = info;
       user.address = address;
-      user.profilePicture = profilePicture;
       await user.save();
 
       res.json({ msg: "User details updated successfully" });
@@ -209,11 +208,244 @@ exports.getUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .select(
-        "name firstName lastName universityName friends info address major profession country birthDate gender educationLevel profilePicture certifications skills"
+        "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName friends friendsCount posts postsCount info address country birthDate certifications skills"
       )
-      .populate("certifications");
+      .populate("certifications skills posts");
 
-    res.json(user);
+    // The age virtual field will automatically be included when the user object is serialized to JSON
+    res.json({
+      ...user.toObject(), // Convert the Mongoose document to a plain JS object
+      age: user.age, // Explicitly add the age if needed
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};
+
+// Get all users
+exports.getAllUsers = async (req, res) => {
+  try {
+    const {
+      gender,
+      distance,
+      longitude,
+      latitude,
+      universityName,
+      major,
+      minAge,
+      maxAge,
+    } = req.query;
+
+    let query = {};
+
+    // Filter by gender
+    if (gender) {
+      query.gender = gender;
+    }
+
+    // Filter by university
+    if (universityName) {
+      query.universityName = universityName;
+    }
+
+    // Filter by major
+    if (major) {
+      query.major = major;
+    }
+
+    // Filter by age range
+    if (minAge || maxAge) {
+      const today = new Date();
+      const currentYear = today.getFullYear();
+
+      if (minAge) {
+        const minBirthYear = currentYear - minAge;
+        query.birthDate = { $lte: new Date(`${minBirthYear}-12-31`) };
+      }
+
+      if (maxAge) {
+        const maxBirthYear = currentYear - maxAge;
+        query.birthDate = query.birthDate || {};
+        query.birthDate.$gte = new Date(`${maxBirthYear}-01-01`);
+      }
+    }
+
+    // Filter by location (distance)
+    if (distance && longitude && latitude) {
+      query.location = {
+        $geoWithin: {
+          $centerSphere: [
+            [parseFloat(longitude), parseFloat(latitude)],
+            parseFloat(distance) / 3963.2, // Earth's radius in miles
+          ],
+        },
+      };
+    }
+
+    // Find users based on the query
+    const users = await User.find(
+      query,
+      "name _id profession universityName profilePicture"
+    );
+
+    res.json(users);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+};
+
+exports.requestPasswordReset = async (req, res) => {
+  const { phone } = req.body;
+  try {
+    const user = await User.findOne({ phone });
+    if (!user) return res.status(400).json({ message: "User not found" });
+
+    const resetToken = crypto.randomBytes(20).toString("hex");
+    const resetTokenExpiry = Date.now() + 3600000; // 1 hour
+
+    user.resetToken = resetToken;
+    user.resetTokenExpiry = resetTokenExpiry;
+    await user.save();
+
+    // Send the reset token via email or SMS
+    // const resetMessage = `Your verification code is ${resetToken}`;
+    // const mailOptions = {
+    //   to: user.email,
+    //   from: process.env.EMAIL_USER,
+    //   subject: "Password Reset",
+    //   text: resetMessage,
+    // };
+
+    // transporter.sendMail(mailOptions, (err, response) => {
+    //   if (err) {
+    //     console.error("Error sending email: ", err);
+    //     res.status(500).json({ message: "Error sending email" });
+    //   } else {
+    //     res
+    //       .status(200)
+    //       .json({ message: "Verification code sent to your phone" });
+    //   }
+    // });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+exports.verifyResetToken = async (req, res) => {
+  const { token } = req.body;
+  try {
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: Date.now() }, // Ensure the token has not expired
+    });
+    if (!user)
+      return res.status(400).json({ message: "Invalid or expired token" });
+
+    res.status(200).json({ message: "Token is valid" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  const { token, password, confirmPassword } = req.body;
+
+  if (password !== confirmPassword) {
+    return res.status(400).json({ message: "Passwords do not match" });
+  }
+
+  try {
+    const user = await User.findOne({
+      resetToken: token,
+      resetTokenExpiry: { $gt: Date.now() }, // Ensure the token has not expired
+    });
+    if (!user)
+      return res.status(400).json({ message: "Invalid or expired token" });
+
+    // Hash and save the new password
+    user.password = await bcrypt.hash(password, 10);
+    // Clear the resetToken and resetTokenExpiry fields
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+    await user.save();
+
+    res.status(200).json({ message: "Password reset successful" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+// Configure multer storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, "uploads/"); // Directory to save uploaded files
+  },
+  filename: function (req, file, cb) {
+    cb(null, req.user.id + path.extname(file.originalname)); // Save file with user ID
+  },
+});
+// File filter to allow only image files
+const fileFilter = (req, file, cb) => {
+  const allowedTypes = /jpeg|jpg|png/;
+  const extname = allowedTypes.test(
+    path.extname(file.originalname).toLowerCase()
+  );
+  const mimetype = allowedTypes.test(file.mimetype);
+
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    cb("Error: Only images are allowed!");
+  }
+};
+// Initialize multer upload
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 1000000 }, // Limit file size to 1MB
+  fileFilter: fileFilter,
+}).single("profilePicture");
+
+// Controller function to upload profile picture
+exports.uploadProfilePicture = (req, res) => {
+  upload(req, res, async (err) => {
+    if (err) {
+      return res.status(400).json({ message: err });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded" });
+    }
+
+    try {
+      const user = await User.findById(req.user.id);
+      user.profilePicture = `/uploads/${req.file.filename}`;
+      await user.save();
+
+      res.json({
+        message: "Profile picture uploaded successfully",
+        profilePicture: user.profilePicture,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Server error" });
+    }
+  });
+};
+
+exports.searchUsers = async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query) {
+      return res.status(400).json({ msg: "Query parameter is required" });
+    }
+
+    const users = await User.find(
+      { name: new RegExp(query, "i") },
+      "name _id profilePicture"
+    );
+
+    res.json(users);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");

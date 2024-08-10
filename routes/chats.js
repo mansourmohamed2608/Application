@@ -94,5 +94,7 @@ router.get("/history/:userId", auth, chatController.getChatHistory);
  *         description: Unauthorized
  */
 router.get("/", auth, chatController.getAllChats);
+router.post("/:chatId/mark-as-read", auth, chatController.markMessagesAsRead);
+router.get("/contacts", auth, chatController.getAllContacts);
 
 module.exports = router;

@@ -55,5 +55,15 @@ router.post("/addCertificate", auth, certificationController.addCertification);
  *         description: Unauthorized
  */
 router.get("/getCertificates", auth, certificationController.getCertificates);
+router.put(
+  "/updateCertificate/:certificationId",
+  auth,
+  certificationController.updateCertification
+);
+router.post(
+  "/deleteCertificate/:certificationId",
+  auth,
+  certificationController.deleteCertification
+);
 
 module.exports = router;

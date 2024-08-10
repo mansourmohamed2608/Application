@@ -154,4 +154,16 @@ router.get("/online-friends", auth, userController.getOnlineFriends);
  */
 router.get("/details", auth, userController.getUserDetails);
 
+router.post("/reset", userController.requestPasswordReset);
+
+router.post("/verify-token", userController.verifyResetToken);
+
+router.put("/reset", userController.resetPassword);
+router.post(
+  "/upload-profile-picture",
+  auth,
+  userController.uploadProfilePicture
+);
+router.get("/getAllUsers", auth, userController.getAllUsers);
+router.get("/searchUsers", auth, userController.searchUsers);
 module.exports = router;

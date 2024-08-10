@@ -59,6 +59,8 @@ app.use("/api/chats", require("./routes/chats"));
 app.use("/api/friend-requests", require("./routes/friendRequests"));
 app.use("/api/chat-rooms", require("./routes/chatRooms"));
 app.use("/api/certifications", require("./routes/certifications"));
+app.use("/api/posts", require("./routes/posts"));
+app.use("/api/skills", require("./routes/skills"));
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs));
 app.use("/", require("./routes/google"));
 

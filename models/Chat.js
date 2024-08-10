@@ -34,6 +34,10 @@ const ChatSchema = new Schema({
   fileType: {
     type: String,
   },
+  isRead: {
+    type: Boolean,
+    default: false,
+  },
   date: {
     type: Date,
     default: Date.now,
