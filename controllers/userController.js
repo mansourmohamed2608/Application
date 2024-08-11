@@ -566,7 +566,9 @@ exports.uploadProfilePicture = (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
       console.error("Multer Error: ", err);
-      return res.status(400).json({ message: err });
+      return res
+        .status(400)
+        .json({ message: "File upload error", error: err.message });
     }
 
     if (!req.file) {
@@ -580,6 +582,7 @@ exports.uploadProfilePicture = (req, res) => {
         console.error("User not found");
         return res.status(404).json({ message: "User not found" });
       }
+
       user.profilePicture = `/uploads/${req.file.filename}`;
       await user.save();
 
