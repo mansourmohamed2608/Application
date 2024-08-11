@@ -3,9 +3,11 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { check, validationResult } = require("express-validator");
 const { getOnlineUsers } = require("../socket"); // Import the function to get online users
-const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
+const formidable = require("formidable");
+const multer = require("multer");
+
 /**
  * Register User
  * @route POST /api/users/register
@@ -522,6 +524,27 @@ exports.resetPassword = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+exports.searchUsers = async (req, res) => {
+  try {
+    const { query } = req.query;
+
+    if (!query) {
+      return res.status(400).json({ msg: "Query parameter is required" });
+    }
+
+    const users = await User.find(
+      { name: new RegExp(query, "i") },
+      "name _id profilePicture"
+    );
+
+    res.json(users);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};
+
 if (!fs.existsSync("uploads/")) {
   fs.mkdirSync("uploads/");
 }
@@ -529,7 +552,7 @@ if (!fs.existsSync("uploads/")) {
 // Configure multer storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "uploads/"); // Directory to save uploaded files
+    cb(null, "uploads/profilephotos/"); // Directory to save uploaded files
   },
   filename: function (req, file, cb) {
     if (!req.user || !req.user.id) {
@@ -557,12 +580,13 @@ const fileFilter = (req, file, cb) => {
 // Initialize multer upload
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 1000000 }, // Limit file size to 1MB
+  limits: { fileSize: 5000000 }, // Limit file size to 1MB
   fileFilter: fileFilter,
 }).single("profilePicture");
 
 // Controller function to upload profile picture
 exports.uploadProfilePicture = (req, res) => {
+  console.log("Starting file upload...");
   upload(req, res, async (err) => {
     if (err) {
       console.error("Multer Error: ", err);
@@ -583,7 +607,7 @@ exports.uploadProfilePicture = (req, res) => {
         return res.status(404).json({ message: "User not found" });
       }
 
-      user.profilePicture = `/uploads/${req.file.filename}`;
+      user.profilePicture = `/uploads/profilephotos/${req.file.filename}`;
       await user.save();
 
       res.json({
@@ -595,24 +619,4 @@ exports.uploadProfilePicture = (req, res) => {
       res.status(500).json({ message: "Server error" });
     }
   });
-};
-
-exports.searchUsers = async (req, res) => {
-  try {
-    const { query } = req.query;
-
-    if (!query) {
-      return res.status(400).json({ msg: "Query parameter is required" });
-    }
-
-    const users = await User.find(
-      { name: new RegExp(query, "i") },
-      "name _id profilePicture"
-    );
-
-    res.json(users);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server error");
-  }
 };

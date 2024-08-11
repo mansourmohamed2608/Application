@@ -1,20 +1,22 @@
-const bcrypt = require("bcrypt");
+const express = require("express");
+const fs = require("fs");
+const app = express();
 
-async function testCompare() {
-  const password = "password123";
-  const hashedPassword = await bcrypt.hash(password, 10);
+app.post("/upload", (req, res) => {
+  const fileStream = fs.createWriteStream("./uploads/testfile");
 
-  console.log(`Original Password: ${password}`);
-  console.log(`Hashed Password: ${hashedPassword}`);
+  req.pipe(fileStream);
 
-  // Now compare the plain password with the hashed password
-  const isMatch = await bcrypt.compare(password, hashedPassword);
+  req.on("end", () => {
+    res.status(200).send("File uploaded");
+  });
 
-  if (isMatch) {
-    console.log("Password match: Success");
-  } else {
-    console.log("Password match: Failed");
-  }
-}
+  req.on("error", (err) => {
+    console.error("Stream Error:", err);
+    res.status(500).send("Upload failed");
+  });
+});
 
-testCompare();
+app.listen(5000, () => {
+  console.log("Server running on port 5000");
+});

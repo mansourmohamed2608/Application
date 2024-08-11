@@ -2,7 +2,7 @@ const express = require("express");
 const connectDB = require("./config/db");
 const session = require("express-session");
 const passport = require("passport");
-const fileUpload = require("express-fileupload");
+
 const app = express();
 const morgan = require("morgan");
 const helmet = require("helmet");
@@ -30,9 +30,6 @@ app.use(
     max: 100, // limit each IP to 100 requests per windowMs
   })
 );
-
-// File upload middleware
-app.use(fileUpload());
 
 // Serve static files
 app.use(express.static(path.join(__dirname, "public")));
