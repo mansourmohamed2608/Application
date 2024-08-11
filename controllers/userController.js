@@ -5,6 +5,7 @@ const { check, validationResult } = require("express-validator");
 const { getOnlineUsers } = require("../socket"); // Import the function to get online users
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 /**
  * Register User
  * @route POST /api/users/register
@@ -118,13 +119,50 @@ exports.loginUser = [
     }
   },
 ];
+exports.changePassword = [
+  check("oldPassword", "Old password is required").exists(),
+  check("newPassword", "New password must be 6 or more characters").isLength({
+    min: 6,
+  }),
+  check("confirmNewPassword", "Confirm new password is required")
+    .not()
+    .isEmpty(),
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
+    const { oldPassword, newPassword, confirmNewPassword } = req.body;
+
+    if (newPassword !== confirmNewPassword) {
+      return res.status(400).json({ msg: "New passwords do not match" });
+    }
+
+    try {
+      const user = await User.findById(req.user.id);
+
+      const isMatch = await bcrypt.compare(oldPassword, user.password);
+      if (!isMatch) {
+        return res.status(400).json({ msg: "Old password is incorrect" });
+      }
+
+      user.password = await bcrypt.hash(newPassword, 10);
+      await user.save();
+
+      res.json({ msg: "Password changed successfully" });
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send("Server error");
+    }
+  },
+];
 /**
  * Update User Details
  * @route PUT /api/users/update-details
  * @access Private
  */
-exports.updateUserDetails = [
+exports.addUserDetails = [
   check("firstName", "First name is required").not().isEmpty(),
   check("lastName", "Last name is required").not().isEmpty(),
   check("birthDate", "Birth date is required").not().isEmpty(),
@@ -172,6 +210,46 @@ exports.updateUserDetails = [
       user.address = address;
       await user.save();
 
+      res.json({ msg: "User details added successfully" });
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send("Server error");
+    }
+  },
+];
+exports.updateUserDetails = [
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
+
+    const {
+      firstName,
+      lastName,
+      birthDate,
+      universityName,
+      major,
+      address,
+      info,
+    } = req.body;
+
+    try {
+      let user = await User.findById(req.user.id);
+      if (!user) {
+        return res.status(404).json({ msg: "User not found" });
+      }
+
+      user.firstName = firstName;
+      user.lastName = lastName;
+      user.birthDate = birthDate;
+      user.universityName = universityName;
+      user.major = major;
+      user.address = address;
+      user.info = info;
+
+      await user.save();
+
       res.json({ msg: "User details updated successfully" });
     } catch (err) {
       console.error(err.message);
@@ -179,7 +257,34 @@ exports.updateUserDetails = [
     }
   },
 ];
+exports.updateAccount = [
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ errors: errors.array() });
+    }
 
+    const { name, email } = req.body;
+
+    try {
+      let user = await User.findById(req.user.id);
+      if (!user) {
+        return res.status(404).json({ msg: "User not found" });
+      }
+
+      user.name = name;
+
+      user.email = email;
+
+      await user.save();
+
+      res.json({ msg: "Account  updated successfully" });
+    } catch (err) {
+      console.error(err.message);
+      res.status(500).send("Server error");
+    }
+  },
+];
 /**
  * Get Online Friends
  * @route GET /api/users/online-friends
@@ -209,11 +314,11 @@ exports.getOnlineFriends = async (req, res) => {
  * @route GET /api/users/details
  * @access Private
  */
-exports.getUserDetails = async (req, res) => {
+exports.getMyDetails = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .select(
-        "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName friends friendsCount posts postsCount info address country birthDate certifications skills"
+        "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName friends friendsCount posts postsCount info address country certifications skills"
       )
       .populate("certifications skills posts");
 
@@ -221,6 +326,43 @@ exports.getUserDetails = async (req, res) => {
     res.json({
       ...user.toObject(), // Convert the Mongoose document to a plain JS object
       age: user.age, // Explicitly add the age if needed
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};
+exports.getUserDetails = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId)
+      .select(
+        "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName posts postsCount info address country certifications skills"
+      )
+      .populate("certifications skills posts");
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    // Get the logged-in user
+    const loggedInUser = await User.findById(req.user.id).select("friends");
+
+    // Find mutual friends
+    const mutualFriends = user.friends.filter((friendId) =>
+      loggedInUser.friends.includes(friendId.toString())
+    );
+
+    // Populate the mutual friends to include their details
+    const populatedMutualFriends = await User.find({
+      _id: { $in: mutualFriends },
+    }).select("name profilePicture");
+
+    // The age virtual field will automatically be included when the user object is serialized to JSON
+    res.json({
+      ...user.toObject(), // Convert the Mongoose document to a plain JS object
+      age: user.age, // Explicitly add the age if needed
+      mutualFriends: populatedMutualFriends, // Include mutual friends
+      mutualFriendsCount: populatedMutualFriends.length, // Include mutual friends count
     });
   } catch (err) {
     console.error(err.message);
@@ -380,6 +522,9 @@ exports.resetPassword = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+if (!fs.existsSync("uploads/")) {
+  fs.mkdirSync("uploads/");
+}
 
 // Configure multer storage
 const storage = multer.diskStorage({
@@ -387,9 +532,13 @@ const storage = multer.diskStorage({
     cb(null, "uploads/"); // Directory to save uploaded files
   },
   filename: function (req, file, cb) {
+    if (!req.user || !req.user.id) {
+      return cb(new Error("User ID is not available"));
+    }
     cb(null, req.user.id + path.extname(file.originalname)); // Save file with user ID
   },
 });
+
 // File filter to allow only image files
 const fileFilter = (req, file, cb) => {
   const allowedTypes = /jpeg|jpg|png/;
@@ -404,6 +553,7 @@ const fileFilter = (req, file, cb) => {
     cb("Error: Only images are allowed!");
   }
 };
+
 // Initialize multer upload
 const upload = multer({
   storage: storage,
@@ -415,15 +565,21 @@ const upload = multer({
 exports.uploadProfilePicture = (req, res) => {
   upload(req, res, async (err) => {
     if (err) {
+      console.error("Multer Error: ", err);
       return res.status(400).json({ message: err });
     }
 
     if (!req.file) {
+      console.error("No file uploaded");
       return res.status(400).json({ message: "No file uploaded" });
     }
 
     try {
       const user = await User.findById(req.user.id);
+      if (!user) {
+        console.error("User not found");
+        return res.status(404).json({ message: "User not found" });
+      }
       user.profilePicture = `/uploads/${req.file.filename}`;
       await user.save();
 
@@ -432,6 +588,7 @@ exports.uploadProfilePicture = (req, res) => {
         profilePicture: user.profilePicture,
       });
     } catch (error) {
+      console.error("Server Error: ", error.message);
       res.status(500).json({ message: "Server error" });
     }
   });

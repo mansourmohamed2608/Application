@@ -67,7 +67,7 @@ router.post("/register", userController.registerUser);
  *         description: Invalid credentials
  */
 router.post("/login", userController.loginUser);
-
+router.put("/change-password", auth, userController.changePassword);
 /**
  * @swagger
  * /api/users/update-details:
@@ -111,8 +111,9 @@ router.post("/login", userController.loginUser);
  *       400:
  *         description: Bad request
  */
+router.put("/add-details", auth, userController.addUserDetails);
 router.put("/update-details", auth, userController.updateUserDetails);
-
+router.put("/update-account", auth, userController.updateAccount);
 /**
  * @swagger
  * /api/users/online-friends:
@@ -152,8 +153,8 @@ router.get("/online-friends", auth, userController.getOnlineFriends);
  *       401:
  *         description: Unauthorized
  */
-router.get("/details", auth, userController.getUserDetails);
-
+router.get("/my-details", auth, userController.getMyDetails);
+router.get("/user-details/:userId", auth, userController.getUserDetails);
 router.post("/reset", userController.requestPasswordReset);
 
 router.post("/verify-token", userController.verifyResetToken);
