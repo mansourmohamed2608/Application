@@ -17,11 +17,12 @@ exports.createPost = async (req, res) => {
 
   try {
     const user = await User.findById(req.user.id);
-
+    const profession = user.major;
+    console.log(profession);
     const newPost = new Post({
       user: req.user.id,
       body,
-      profession: user.profession,
+      profession: profession,
       location: {
         type: "Point",
         coordinates: [parseFloat(longitude), parseFloat(latitude)],

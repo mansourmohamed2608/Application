@@ -5,7 +5,6 @@ const { check, validationResult } = require("express-validator");
 const { getOnlineUsers } = require("../socket"); // Import the function to get online users
 const path = require("path");
 const fs = require("fs");
-const formidable = require("formidable");
 const multer = require("multer");
 
 /**
@@ -121,6 +120,7 @@ exports.loginUser = [
     }
   },
 ];
+
 exports.changePassword = [
   check("oldPassword", "Old password is required").exists(),
   check("newPassword", "New password must be 6 or more characters").isLength({
@@ -159,6 +159,7 @@ exports.changePassword = [
     }
   },
 ];
+
 /**
  * Update User Details
  * @route PUT /api/users/update-details
@@ -219,6 +220,7 @@ exports.addUserDetails = [
     }
   },
 ];
+
 exports.updateUserDetails = [
   async (req, res) => {
     const errors = validationResult(req);
@@ -259,6 +261,7 @@ exports.updateUserDetails = [
     }
   },
 ];
+
 exports.updateAccount = [
   async (req, res) => {
     const errors = validationResult(req);
@@ -275,18 +278,18 @@ exports.updateAccount = [
       }
 
       user.name = name;
-
       user.email = email;
 
       await user.save();
 
-      res.json({ msg: "Account  updated successfully" });
+      res.json({ msg: "Account updated successfully" });
     } catch (err) {
       console.error(err.message);
       res.status(500).send("Server error");
     }
   },
 ];
+
 /**
  * Get Online Friends
  * @route GET /api/users/online-friends
@@ -300,19 +303,27 @@ exports.getOnlineFriends = async (req, res) => {
       (friend) => onlineUsers[friend.id]
     );
 
-    res.json(onlineFriends);
+    // Attach the profile picture URL to each friend
+    const onlineFriendsWithProfilePics = onlineFriends.map((friend) => {
+      return {
+        ...friend.toObject(),
+        profilePictureUrl: friend.profilePicture
+          ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${
+              friend.profilePicture
+            }`
+          : null,
+      };
+    });
+
+    res.json(onlineFriendsWithProfilePics);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
   }
 };
+
 /**
- * Get User Details
- * @route GET /api/users/details
- * @access Private
- */
-/**
- * Get User Details
+ * Get My Details
  * @route GET /api/users/details
  * @access Private
  */
@@ -324,16 +335,27 @@ exports.getMyDetails = async (req, res) => {
       )
       .populate("certifications skills posts");
 
-    // The age virtual field will automatically be included when the user object is serialized to JSON
+    if (user.profilePicture) {
+      user.profilePictureUrl = `${req.protocol}://${req.get(
+        "host"
+      )}/uploads/profilephotos/${user.profilePicture}`;
+    }
+
     res.json({
-      ...user.toObject(), // Convert the Mongoose document to a plain JS object
-      age: user.age, // Explicitly add the age if needed
+      ...user.toObject(),
+      age: user.age,
     });
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
   }
 };
+
+/**
+ * Get User Details
+ * @route GET /api/users/:userId/details
+ * @access Private
+ */
 exports.getUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId)
@@ -346,25 +368,26 @@ exports.getUserDetails = async (req, res) => {
       return res.status(404).json({ msg: "User not found" });
     }
 
-    // Get the logged-in user
     const loggedInUser = await User.findById(req.user.id).select("friends");
-
-    // Find mutual friends
     const mutualFriends = user.friends.filter((friendId) =>
       loggedInUser.friends.includes(friendId.toString())
     );
 
-    // Populate the mutual friends to include their details
     const populatedMutualFriends = await User.find({
       _id: { $in: mutualFriends },
     }).select("name profilePicture");
 
-    // The age virtual field will automatically be included when the user object is serialized to JSON
+    if (user.profilePicture) {
+      user.profilePictureUrl = `${req.protocol}://${req.get(
+        "host"
+      )}/uploads/profilephotos/${user.profilePicture}`;
+    }
+
     res.json({
-      ...user.toObject(), // Convert the Mongoose document to a plain JS object
-      age: user.age, // Explicitly add the age if needed
-      mutualFriends: populatedMutualFriends, // Include mutual friends
-      mutualFriendsCount: populatedMutualFriends.length, // Include mutual friends count
+      ...user.toObject(),
+      age: user.age,
+      mutualFriends: populatedMutualFriends,
+      mutualFriendsCount: populatedMutualFriends.length,
     });
   } catch (err) {
     console.error(err.message);
@@ -388,22 +411,10 @@ exports.getAllUsers = async (req, res) => {
 
     let query = {};
 
-    // Filter by gender
-    if (gender) {
-      query.gender = gender;
-    }
+    if (gender) query.gender = gender;
+    if (universityName) query.universityName = universityName;
+    if (major) query.major = major;
 
-    // Filter by university
-    if (universityName) {
-      query.universityName = universityName;
-    }
-
-    // Filter by major
-    if (major) {
-      query.major = major;
-    }
-
-    // Filter by age range
     if (minAge || maxAge) {
       const today = new Date();
       const currentYear = today.getFullYear();
@@ -420,25 +431,32 @@ exports.getAllUsers = async (req, res) => {
       }
     }
 
-    // Filter by location (distance)
     if (distance && longitude && latitude) {
       query.location = {
         $geoWithin: {
           $centerSphere: [
             [parseFloat(longitude), parseFloat(latitude)],
-            parseFloat(distance) / 3963.2, // Earth's radius in miles
+            parseFloat(distance) / 3963.2,
           ],
         },
       };
     }
 
-    // Find users based on the query
     const users = await User.find(
       query,
       "name _id profession universityName profilePicture"
     );
 
-    res.json(users);
+    const usersWithProfilePics = users.map((user) => ({
+      ...user.toObject(),
+      profilePictureUrl: user.profilePicture
+        ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${
+            user.profilePicture
+          }`
+        : null,
+    }));
+
+    res.json(usersWithProfilePics);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
@@ -481,6 +499,7 @@ exports.requestPasswordReset = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
 exports.verifyResetToken = async (req, res) => {
   const { token } = req.body;
   try {
@@ -538,85 +557,88 @@ exports.searchUsers = async (req, res) => {
       "name _id profilePicture"
     );
 
-    res.json(users);
+    const usersWithProfilePics = users.map((user) => ({
+      ...user.toObject(),
+      profilePictureUrl: user.profilePicture
+        ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${
+            user.profilePicture
+          }`
+        : null,
+    }));
+
+    res.json(usersWithProfilePics);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
   }
 };
 
-if (!fs.existsSync("uploads/")) {
-  fs.mkdirSync("uploads/");
+const profilePhotosDir = path.join(__dirname, "../uploads/profilephotos");
+if (!fs.existsSync(profilePhotosDir)) {
+  fs.mkdirSync(profilePhotosDir, { recursive: true });
 }
 
-// Configure multer storage
+// Configure Multer storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "uploads/profilephotos/"); // Directory to save uploaded files
+    cb(null, profilePhotosDir);
   },
   filename: function (req, file, cb) {
-    if (!req.user || !req.user.id) {
-      return cb(new Error("User ID is not available"));
-    }
-    cb(null, req.user.id + path.extname(file.originalname)); // Save file with user ID
+    const filename = `${req.user.id}-${Date.now()}${path.extname(
+      file.originalname
+    )}`;
+    cb(null, filename);
   },
 });
 
-// File filter to allow only image files
+// File filter to check for image types
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png/;
-  const extname = allowedTypes.test(
-    path.extname(file.originalname).toLowerCase()
-  );
-  const mimetype = allowedTypes.test(file.mimetype);
+  const allowedMimeTypes = ["image/jpeg", "image/png", "image/gif"];
 
-  if (mimetype && extname) {
-    return cb(null, true);
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
   } else {
-    cb("Error: Only images are allowed!");
+    cb(
+      new Error(
+        "Invalid file type. Only JPEG, PNG, and GIF images are allowed."
+      ),
+      false
+    );
   }
 };
 
-// Initialize multer upload
+// Initialize Multer with storage and fileFilter
 const upload = multer({
   storage: storage,
-  limits: { fileSize: 5000000 }, // Limit file size to 1MB
   fileFilter: fileFilter,
-}).single("profilePicture");
-
-// Controller function to upload profile picture
-exports.uploadProfilePicture = (req, res) => {
-  console.log("Starting file upload...");
-  upload(req, res, async (err) => {
-    if (err) {
-      console.error("Multer Error: ", err);
-      return res
-        .status(400)
-        .json({ message: "File upload error", error: err.message });
-    }
-
-    if (!req.file) {
-      console.error("No file uploaded");
-      return res.status(400).json({ message: "No file uploaded" });
-    }
-
+});
+exports.uploadProfilePicture = [
+  upload.single("profilePicture"), // Multer middleware for handling single file upload
+  async (req, res) => {
     try {
       const user = await User.findById(req.user.id);
       if (!user) {
-        console.error("User not found");
         return res.status(404).json({ message: "User not found" });
       }
 
-      user.profilePicture = `/uploads/profilephotos/${req.file.filename}`;
+      // Check if file was uploaded (in case the filter blocked it)
+      if (!req.file) {
+        return res
+          .status(400)
+          .json({ message: "No valid image file uploaded" });
+      }
+
+      // Save only the file name in the database
+      user.profilePicture = req.file.filename;
       await user.save();
 
       res.json({
         message: "Profile picture uploaded successfully",
-        profilePicture: user.profilePicture,
+        profilePicture: req.file.filename,
       });
-    } catch (error) {
-      console.error("Server Error: ", error.message);
+    } catch (err) {
+      console.error(err.message);
       res.status(500).json({ message: "Server error" });
     }
-  });
-};
+  },
+];
