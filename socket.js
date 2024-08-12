@@ -45,7 +45,31 @@ const setupSocket = (server) => {
 
     // Handle RTC signaling data
     socket.on("rtc-signal", (data) => {
-      socket.broadcast.to(data.roomId).emit("rtc-signal", data);
+      socket.to(data.roomId).emit("rtc-signal", data);
+    });
+
+    // Handle call initiation
+    socket.on("call-user", (data) => {
+      const { recipientId, offer } = data;
+      const recipientSocketId = onlineUsers[recipientId];
+      if (recipientSocketId) {
+        io.to(recipientSocketId).emit("incoming-call", {
+          from: socket.id,
+          offer: offer,
+        });
+      }
+    });
+
+    // Handle call answer
+    socket.on("answer-call", (data) => {
+      const { to, answer } = data;
+      io.to(onlineUsers[to]).emit("call-answered", { answer });
+    });
+
+    // Handle ICE candidate exchange
+    socket.on("ice-candidate", (data) => {
+      const { to, candidate } = data;
+      io.to(onlineUsers[to]).emit("ice-candidate", { candidate });
     });
   });
 

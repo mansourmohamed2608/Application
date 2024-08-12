@@ -6,13 +6,15 @@ const path = require("path");
 
 exports.sendMessage = async (req, res) => {
   try {
-    const { recipientId, text, photo, video, date } = req.body;
+    const { recipientId, text, date } = req.body;
     let fileUrl = null;
     let fileName = null;
     let fileType = null;
 
-    if (!recipientId || (!text && !photo && !video && !req.files) || !date) {
-      return res.status(400).json({ msg: "All fields are required" });
+    if (!recipientId || (!text && !req.files) || !date) {
+      return res.status(400).json({
+        msg: "Recipient, message text or file, and date are required",
+      });
     }
 
     // Handle file upload
@@ -20,16 +22,23 @@ exports.sendMessage = async (req, res) => {
       const file = req.files.file;
       fileName = file.name;
       fileType = file.mimetype;
-      const uploadPath = path.join(__dirname, "../uploads/", fileName);
+      const uploadDir = path.join(__dirname, "../uploads/chat");
+
+      // Ensure the upload directory exists
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+      }
+
+      const uploadPath = path.join(uploadDir, fileName);
 
       await file.mv(uploadPath, (err) => {
         if (err) {
           console.error("File upload error:", err);
-          return res.status(500).send(err);
+          return res.status(500).send("File upload failed");
         }
       });
 
-      fileUrl = `/uploads/${fileName}`;
+      fileUrl = `/uploads/chat/${fileName}`;
     }
 
     const chat = new Chat({
@@ -37,8 +46,6 @@ exports.sendMessage = async (req, res) => {
       sender: req.user.id,
       recipient: recipientId,
       text,
-      photo,
-      video,
       file: fileUrl,
       fileName,
       fileType,
@@ -53,7 +60,7 @@ exports.sendMessage = async (req, res) => {
     // Create a new notification for the recipient
     const newNotification = new Notification({
       userId: recipientId,
-      message: `You have a new message from ${sender.name}`, // Include the sender's name
+      message: `You have a new message from ${sender.name}`,
       read: false,
       date: new Date(),
     });

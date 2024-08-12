@@ -55,6 +55,11 @@ router.post("/addCertificate", auth, certificationController.addCertification);
  *         description: Unauthorized
  */
 router.get("/getCertificates", auth, certificationController.getCertificates);
+router.get(
+  "/getCertificateById/:certificationId",
+  auth,
+  certificationController.getCertificateById
+);
 router.put(
   "/updateCertificate/:certificationId",
   auth,

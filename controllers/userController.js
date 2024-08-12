@@ -172,7 +172,6 @@ exports.addUserDetails = [
   check("gender", "Gender is required").not().isEmpty(),
   check("educationLevel", "Education level is required").not().isEmpty(),
   check("major", "Major is required").not().isEmpty(),
-  check("profession", "Profession  is required").not().isEmpty(),
   check("country", "Country is required").not().isEmpty(),
   async (req, res) => {
     const errors = validationResult(req);
@@ -187,7 +186,6 @@ exports.addUserDetails = [
       gender,
       educationLevel,
       major,
-      profession,
       country,
       universityName,
       info,
@@ -206,7 +204,6 @@ exports.addUserDetails = [
       user.gender = gender;
       user.educationLevel = educationLevel;
       user.major = major;
-      user.profession = profession;
       user.country = country;
       user.universityName = universityName;
       user.info = info;
@@ -331,19 +328,17 @@ exports.getMyDetails = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .select(
-        "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName friends friendsCount posts postsCount info address country certifications skills"
+        "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName age friends friendsCount posts postsCount info address country certifications skills"
       )
       .populate("certifications skills posts");
 
-    if (user.profilePicture) {
-      user.profilePictureUrl = `${req.protocol}://${req.get(
-        "host"
-      )}/uploads/profilephotos/${user.profilePicture}`;
-    }
+    const profilePictureUrl = `${req.protocol}://${req.get(
+      "host"
+    )}/uploads/profilephotos/${user.profilePicture}`;
 
     res.json({
       ...user.toObject(),
-      age: user.age,
+      profilePictureUrl,
     });
   } catch (err) {
     console.error(err.message);
@@ -360,7 +355,7 @@ exports.getUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId)
       .select(
-        "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName posts postsCount info address country certifications skills"
+        "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName age posts postsCount info address country certifications skills"
       )
       .populate("certifications skills posts");
 
@@ -377,15 +372,14 @@ exports.getUserDetails = async (req, res) => {
       _id: { $in: mutualFriends },
     }).select("name profilePicture");
 
-    if (user.profilePicture) {
-      user.profilePictureUrl = `${req.protocol}://${req.get(
-        "host"
-      )}/uploads/profilephotos/${user.profilePicture}`;
-    }
+    const profilePictureUrl = `${req.protocol}://${req.get(
+      "host"
+    )}/uploads/profilephotos/${user.profilePicture}`;
 
     res.json({
       ...user.toObject(),
-      age: user.age,
+
+      profilePictureUrl,
       mutualFriends: populatedMutualFriends,
       mutualFriendsCount: populatedMutualFriends.length,
     });
@@ -444,19 +438,18 @@ exports.getAllUsers = async (req, res) => {
 
     const users = await User.find(
       query,
-      "name _id profession universityName profilePicture"
+      "name _id major universityName profilePicture"
     );
 
-    const usersWithProfilePics = users.map((user) => ({
+    // Add profile picture URL to each user
+    const usersWithProfilePictureUrl = users.map((user) => ({
       ...user.toObject(),
-      profilePictureUrl: user.profilePicture
-        ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${
-            user.profilePicture
-          }`
-        : null,
+      profilePictureUrl: `${req.protocol}://${req.get(
+        "host"
+      )}/uploads/profilephotos/${user.profilePicture}`,
     }));
 
-    res.json(usersWithProfilePics);
+    res.json(usersWithProfilePictureUrl);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
@@ -557,16 +550,15 @@ exports.searchUsers = async (req, res) => {
       "name _id profilePicture"
     );
 
-    const usersWithProfilePics = users.map((user) => ({
+    // Add profile picture URL to each user
+    const usersWithProfilePictureUrl = users.map((user) => ({
       ...user.toObject(),
-      profilePictureUrl: user.profilePicture
-        ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${
-            user.profilePicture
-          }`
-        : null,
+      profilePictureUrl: `${req.protocol}://${req.get(
+        "host"
+      )}/uploads/profilephotos/${user.profilePicture}`,
     }));
 
-    res.json(usersWithProfilePics);
+    res.json(usersWithProfilePictureUrl);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
@@ -612,6 +604,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
 });
+
 exports.uploadProfilePicture = [
   upload.single("profilePicture"), // Multer middleware for handling single file upload
   async (req, res) => {
@@ -621,6 +614,21 @@ exports.uploadProfilePicture = [
         return res.status(404).json({ message: "User not found" });
       }
 
+      // Check if the user already has a profile picture
+      if (user.profilePicture) {
+        // Path to the existing profile picture
+        const oldProfilePicturePath = path.join(
+          profilePhotosDir,
+          user.profilePicture
+        );
+
+        // Check if the file exists in the folder
+        if (fs.existsSync(oldProfilePicturePath)) {
+          // Remove the existing profile picture file
+          fs.unlinkSync(oldProfilePicturePath);
+        }
+      }
+
       // Check if file was uploaded (in case the filter blocked it)
       if (!req.file) {
         return res
@@ -628,7 +636,7 @@ exports.uploadProfilePicture = [
           .json({ message: "No valid image file uploaded" });
       }
 
-      // Save only the file name in the database
+      // Save the new profile picture's file name in the database
       user.profilePicture = req.file.filename;
       await user.save();
 

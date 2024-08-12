@@ -17,12 +17,12 @@ exports.createPost = async (req, res) => {
 
   try {
     const user = await User.findById(req.user.id);
-    const profession = user.major;
-    console.log(profession);
+    const major = user.major;
+    console.log(major);
     const newPost = new Post({
       user: req.user.id,
       body,
-      profession: profession,
+      major: major,
       location: {
         type: "Point",
         coordinates: [parseFloat(longitude), parseFloat(latitude)],
@@ -35,10 +35,9 @@ exports.createPost = async (req, res) => {
     user.postsCount += 1;
     await user.save();
 
-    // Populate the user fields (name and profession) in the post
     const populatedPost = await Post.findById(post._id).populate("user", [
       "name",
-      "profession",
+      "major",
     ]);
 
     res.json(populatedPost);
@@ -74,7 +73,7 @@ exports.getAllPosts = async (req, res) => {
 
     const posts = await Post.find(query)
       .sort({ date: -1 })
-      .populate("user", ["name", "profession"]); // Populate user details
+      .populate("user", ["name", "major"]); // Populate user details
 
     res.json(posts);
   } catch (err) {
@@ -123,7 +122,7 @@ exports.getFriendsPosts = async (req, res) => {
     // Fetch posts based on filters, sorting by date (most recent first)
     const posts = await Post.find(query)
       .sort({ date: -1 })
-      .populate("user", ["name", "profession"]); // Populate user details
+      .populate("user", ["name", "major"]); // Populate user details
 
     res.json(posts);
   } catch (err) {
@@ -139,7 +138,7 @@ exports.getPostsByUserId = async (req, res) => {
   try {
     const posts = await Post.find({ user: userId, isArchived: false }) // Exclude archived posts
       .sort({ date: -1 })
-      .populate("user", ["name", "profession"]); // Populate user details
+      .populate("user", ["name", "major"]); // Populate user details
 
     if (!posts || posts.length === 0) {
       return res.status(404).json({ msg: "No posts found for this user" });
@@ -180,10 +179,9 @@ exports.updatePost = async (req, res) => {
 
     post = await post.save();
 
-    // Populate the user fields (name and profession) in the post
     const populatedPost = await Post.findById(post._id).populate("user", [
       "name",
-      "profession",
+      "major",
     ]);
 
     res.json(populatedPost);
@@ -350,7 +348,7 @@ exports.getPostDetailsByPostId = async (req, res) => {
     const formattedPost = {
       _id: post._id,
       body: post.body,
-      profession: post.profession,
+      major: post.major,
       reactsCount: Array.from(post.reacts.values()).reduce((a, b) => a + b, 0),
       date: timeSince(post.date),
       comments: post.comments.map((comment) => ({

@@ -54,7 +54,7 @@ const PostSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  profession: {
+  major: {
     type: String,
     required: true,
   },

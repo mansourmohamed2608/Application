@@ -4,13 +4,34 @@ const Notification = require("../models/Notification");
 const Certification = require("../models/Certification");
 const { validationResult } = require("express-validator");
 const fs = require("fs");
+
+// Helper function to sanitize file names
+const sanitizeFileName = (name) => {
+  return name.replace(/[^a-z0-9]/gi, "_").toLowerCase();
+};
+
 // Set up multer for file storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, "uploads/certifications/"); // Directory where files will be stored
+    const uploadDir = "uploads/certifications/";
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir); // Directory where files will be stored
   },
-  filename: function (req, file, cb) {
-    cb(null, req.user.id + "_" + Date.now() + path.extname(file.originalname));
+  filename: async function (req, file, cb) {
+    try {
+      const { title } = req.body;
+      const certificationName = title
+        ? sanitizeFileName(title)
+        : "unknown_cert";
+      const filename = `${req.user.id}_${certificationName}${path.extname(
+        file.originalname
+      )}`;
+      cb(null, filename);
+    } catch (error) {
+      cb(error);
+    }
   },
 });
 
@@ -40,13 +61,6 @@ exports.addCertification = (req, res) => {
 
       const certification = await newCertification.save();
 
-      // Optionally, add a notification
-      // const newNotification = new Notification({
-      //   userId: req.user.id,
-      //   message: `New certification added: ${title}`,
-      // });
-      // await newNotification.save();
-
       res.json(certification);
     } catch (err) {
       console.error(err.message);
@@ -54,6 +68,7 @@ exports.addCertification = (req, res) => {
     }
   });
 };
+
 exports.updateCertification = (req, res) => {
   upload(req, res, async function (err) {
     if (err) {
@@ -82,7 +97,7 @@ exports.updateCertification = (req, res) => {
       // Handle document replacement
       if (req.file) {
         // Remove the old document if it exists
-        if (certification.document) {
+        if (certification.document && fs.existsSync(certification.document)) {
           fs.unlinkSync(certification.document);
         }
         // Set the new document path
@@ -97,17 +112,59 @@ exports.updateCertification = (req, res) => {
     }
   });
 };
+
 exports.getCertificates = async (req, res) => {
   try {
     const certificates = await Certification.find({ userId: req.user.id }).sort(
       { achievementDate: -1 }
     );
-    res.json(certificates);
+
+    // Construct the URL for each certificate
+    const certificatesWithUrl = certificates.map((cert) => {
+      const documentUrl = cert.document
+        ? `${req.protocol}://${req.get(
+            "host"
+          )}/uploads/certifications/${path.basename(cert.document)}`
+        : null;
+      return {
+        ...cert.toObject(),
+        documentUrl,
+      };
+    });
+
+    res.json(certificatesWithUrl);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
   }
 };
+exports.getCertificateById = async (req, res) => {
+  const { certificationId } = req.params;
+
+  try {
+    const certification = await Certification.findById(certificationId);
+
+    if (!certification) {
+      return res.status(404).json({ msg: "Certification not found" });
+    }
+
+    // Construct the document URL
+    const documentUrl = certification.document
+      ? `${req.protocol}://${req.get(
+          "host"
+        )}/uploads/certifications/${path.basename(certification.document)}`
+      : null;
+
+    res.json({
+      ...certification.toObject(),
+      documentUrl,
+    });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server error");
+  }
+};
+
 // Delete a certification
 exports.deleteCertification = async (req, res) => {
   const { certificationId } = req.params;
@@ -125,7 +182,7 @@ exports.deleteCertification = async (req, res) => {
     }
 
     // Remove the document file if it exists
-    if (certification.document) {
+    if (certification.document && fs.existsSync(certification.document)) {
       fs.unlinkSync(certification.document);
     }
 
