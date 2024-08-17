@@ -1,4 +1,5 @@
 const User = require("../models/User");
+const Post = require("../models/Post");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { check, validationResult } = require("express-validator");
@@ -330,7 +331,16 @@ exports.getMyDetails = async (req, res) => {
       .select(
         "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName age friends friendsCount posts postsCount info address country certifications skills"
       )
-      .populate("certifications skills posts");
+      .populate("certifications skills posts"); // Populating 'posts' field
+
+    if (!user) {
+      return res.status(404).json({ msg: "User not found" });
+    }
+
+    // Populate posts with additional user information
+    const populatedPosts = await Post.find({ user: user._id })
+      .populate("user", "name major profilePicture")
+      .sort({ date: -1 }); // Optional: Sort posts by date, most recent first
 
     const profilePictureUrl = `${req.protocol}://${req.get(
       "host"
@@ -339,6 +349,7 @@ exports.getMyDetails = async (req, res) => {
     res.json({
       ...user.toObject(),
       profilePictureUrl,
+      posts: populatedPosts, // Include the populated posts in the response
     });
   } catch (err) {
     console.error(err.message);
@@ -357,11 +368,16 @@ exports.getUserDetails = async (req, res) => {
       .select(
         "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName age posts postsCount info address country certifications skills"
       )
-      .populate("certifications skills posts");
+      .populate("certifications skills posts"); // Populating 'posts' field
 
     if (!user) {
       return res.status(404).json({ msg: "User not found" });
     }
+
+    // Populate posts with additional user information
+    const populatedPosts = await Post.find({ user: user._id })
+      .populate("user", "name major profilePicture")
+      .sort({ date: -1 }); // Optional: Sort posts by date, most recent first
 
     const loggedInUser = await User.findById(req.user.id).select("friends");
     const mutualFriends = user.friends.filter((friendId) =>
@@ -378,10 +394,10 @@ exports.getUserDetails = async (req, res) => {
 
     res.json({
       ...user.toObject(),
-
       profilePictureUrl,
       mutualFriends: populatedMutualFriends,
       mutualFriendsCount: populatedMutualFriends.length,
+      posts: populatedPosts, // Include the populated posts in the response
     });
   } catch (err) {
     console.error(err.message);
