@@ -1,6 +1,7 @@
 const User = require("../models/User");
 const Post = require("../models/Post");
 const Skill = require("../models/Skill");
+const Certification = require("../models/Certification.js");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { check, validationResult } = require("express-validator");
@@ -332,21 +333,40 @@ exports.getMyDetails = async (req, res) => {
       .select(
         "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName age friends friendsCount posts postsCount info address country certifications skills"
       )
-      .populate("certifications skills posts"); // Populating 'certifications', 'skills', and 'posts'
+      .populate("certifications skills posts");
 
     if (!user) {
       return res.status(404).json({ msg: "User not found" });
     }
 
-    // Populate skills with additional user information
+    // Populate certifications with URLs
+    const populatedCertifications = await Certification.find({
+      userId: user._id,
+    }).sort({
+      year: -1,
+    });
+
+    const certificationsWithUrl = populatedCertifications.map((cert) => {
+      const documentUrl = cert.document
+        ? `${req.protocol}://${req.get(
+            "host"
+          )}/uploads/certifications/${path.basename(cert.document)}`
+        : null;
+      return {
+        ...cert.toObject(),
+        documentUrl,
+      };
+    });
+
+    // Populate skills
     const populatedSkills = await Skill.find({ userId: user._id }).sort({
       title: 1,
-    }); // Sort skills by title
+    });
 
-    // Populate posts with additional user information
+    // Populate posts
     const populatedPosts = await Post.find({ user: user._id })
       .populate("user", "name major profilePicture")
-      .sort({ date: -1 }); // Sort posts by date, most recent first
+      .sort({ date: -1 });
 
     const profilePictureUrl = `${req.protocol}://${req.get(
       "host"
@@ -355,8 +375,9 @@ exports.getMyDetails = async (req, res) => {
     res.json({
       ...user.toObject(),
       profilePictureUrl,
-      posts: populatedPosts, // Include the populated posts in the response
-      skills: populatedSkills, // Include the populated skills in the response
+      posts: populatedPosts,
+      skills: populatedSkills,
+      certifications: certificationsWithUrl, // Include the populated certifications with URLs in the response
     });
   } catch (err) {
     console.error(err.message);
@@ -373,7 +394,7 @@ exports.getUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId)
       .select(
-        "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName age posts postsCount info address country certifications skills"
+        "_id profilePicture backgroundPicture name firstName lastName major educationLevel universityName age posts postsCount info address country certifications skills friends"
       )
       .populate("certifications skills posts");
 
@@ -381,19 +402,14 @@ exports.getUserDetails = async (req, res) => {
       return res.status(404).json({ msg: "User not found" });
     }
 
-    // Populate skills
-    const populatedSkills = await Skill.find({ userId: user._id }).sort({
-      title: 1,
-    }); // Sort skills by title
-
-    // Populate posts with additional user information
-    const populatedPosts = await Post.find({ user: user._id })
-      .populate("user", "name major profilePicture")
-      .sort({ date: -1 }); // Sort posts by date, most recent first
-
     const loggedInUser = await User.findById(req.user.id).select("friends");
-    const mutualFriends = user.friends.filter((friendId) =>
-      loggedInUser.friends.includes(friendId.toString())
+
+    // Ensure `friends` array is defined
+    const userFriends = user.friends || [];
+    const loggedInUserFriends = loggedInUser.friends || [];
+
+    const mutualFriends = userFriends.filter((friendId) =>
+      loggedInUserFriends.includes(friendId.toString())
     );
 
     const populatedMutualFriends = await User.find({
@@ -404,13 +420,43 @@ exports.getUserDetails = async (req, res) => {
       "host"
     )}/uploads/profilephotos/${user.profilePicture}`;
 
+    // Populate certifications with URLs
+    const populatedCertifications = await Certification.find({
+      userId: user._id,
+    }).sort({
+      year: -1,
+    });
+
+    const certificationsWithUrl = populatedCertifications.map((cert) => {
+      const documentUrl = cert.document
+        ? `${req.protocol}://${req.get(
+            "host"
+          )}/uploads/certifications/${path.basename(cert.document)}`
+        : null;
+      return {
+        ...cert.toObject(),
+        documentUrl,
+      };
+    });
+
+    // Populate skills
+    const populatedSkills = await Skill.find({ userId: user._id }).sort({
+      title: 1,
+    });
+
+    // Populate posts
+    const populatedPosts = await Post.find({ user: user._id })
+      .populate("user", "name major profilePicture")
+      .sort({ date: -1 });
+
     res.json({
       ...user.toObject(),
       profilePictureUrl,
       mutualFriends: populatedMutualFriends,
       mutualFriendsCount: populatedMutualFriends.length,
-      posts: populatedPosts, // Include the populated posts in the response
-      skills: populatedSkills, // Include the populated skills in the response
+      posts: populatedPosts,
+      skills: populatedSkills,
+      certifications: certificationsWithUrl, // Include the populated certifications with URLs in the response
     });
   } catch (err) {
     console.error(err.message);

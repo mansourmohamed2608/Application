@@ -25,9 +25,12 @@ const storage = multer.diskStorage({
       const certificationName = title
         ? sanitizeFileName(title)
         : "unknown_cert";
-      const filename = `${req.user.id}_${certificationName}${path.extname(
+      let filename = `${req.user.id}_${certificationName}${path.extname(
         file.originalname
       )}`;
+
+      // Replace any backslashes with forward slashes
+      filename = filename.replace(/\\/g, "/");
       cb(null, filename);
     } catch (error) {
       cb(error);
@@ -49,7 +52,12 @@ exports.addCertification = (req, res) => {
     }
 
     const { title, year } = req.body;
-    const documentPath = req.file ? req.file.path : null;
+    let documentPath = req.file ? req.file.path : null;
+
+    // Replace any backslashes with forward slashes
+    if (documentPath) {
+      documentPath = documentPath.replace(/\\/g, "/");
+    }
 
     try {
       const newCertification = new Certification({
@@ -101,7 +109,9 @@ exports.updateCertification = (req, res) => {
           fs.unlinkSync(certification.document);
         }
         // Set the new document path
-        certification.document = req.file.path;
+        let documentPath = req.file.path;
+        documentPath = documentPath.replace(/\\/g, "/");
+        certification.document = documentPath;
       }
 
       const updatedCertification = await certification.save();
