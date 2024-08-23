@@ -33,6 +33,9 @@ const UserSchema = new mongoose.Schema({
   resetToken: String,
   resetTokenExpiry: Date,
   age: { type: Number },
+  otpVerified: { type: Boolean, default: false },
+  otp: { type: String },
+  otpExpiry: { type: Date },
 });
 
 UserSchema.pre("save", function (next) {

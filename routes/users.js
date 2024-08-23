@@ -155,9 +155,7 @@ router.get("/online-friends", auth, userController.getOnlineFriends);
  */
 router.get("/my-details", auth, userController.getMyDetails);
 router.get("/user-details/:userId", auth, userController.getUserDetails);
-router.post("/reset", userController.requestPasswordReset);
-
-router.post("/verify-token", userController.verifyResetToken);
+router.post("/request-reset", userController.requestPasswordReset);
 
 router.put("/reset", userController.resetPassword);
 router.post(
@@ -167,4 +165,10 @@ router.post(
 );
 router.get("/getAllUsers", auth, userController.getAllUsers);
 router.get("/searchUsers", auth, userController.searchUsers);
+
+router.post("/send-otp", userController.sendOtp);
+
+// Route to verify OTP
+router.post("/verify-otp", userController.verifyOTP);
+
 module.exports = router;

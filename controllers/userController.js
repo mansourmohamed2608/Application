@@ -1,6 +1,6 @@
 const User = require("../models/User");
 const Post = require("../models/Post");
-const Skill = require("../models/Skill");
+const Skill = require("../models/skill");
 const Certification = require("../models/Certification.js");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -9,13 +9,57 @@ const { getOnlineUsers } = require("../socket"); // Import the function to get o
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
+const crypto = require("crypto"); // For generating OTP
+const request = require("request"); // For making HTTP requests
+const otpStore = require("../temp/otpStore"); // Importing the OTP store
+
+const sendOtp = async (req, res) => {
+  const { phone } = req.body;
+  const otp = crypto.randomInt(100000, 999999).toString(); // Generate OTP
+  const otpExpiry = Date.now() + 10 * 60 * 1000; // OTP expires in 10 minutes
+
+  try {
+    //Find the user by phone number
+    let user = await User.findOne({ phone: phone });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    //Update the user's OTP and expiration time
+    user.otp = otp;
+    user.otpExpiry = otpExpiry;
+    await user.save();
+
+    const options = {
+      method: "POST",
+      url: "https://instawhats.com/api/create-message",
+      headers: {},
+      formData: {
+        appkey: "3ce72a03-562b-42f2-b107-600fcc2093cd",
+        authkey: "v83Rh1D4KcZyOvWsWPIR7VJWzKB12XFjZeXIwQNzY7hBbLCDZo",
+        to: phone,
+        message: `Your OTP code is: ${otp}`,
+        file: "",
+      },
+    };
+
+    request(options, (error, response) => {
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+      return res.status(200).json({ message: "OTP sent successfully" });
+    });
+  } catch (error) {
+    return res.status(500).json({ error: "Server error, OTP not sent" });
+  }
+};
 
 /**
  * Register User
  * @route POST /api/users/register
  * @access Public
  */
-exports.registerUser = [
+const registerUser = [
   check("email", "Please include a valid email").isEmail(),
   check("phone", "Phone number is required").not().isEmpty(),
   check("name", "Name is required").not().isEmpty(),
@@ -40,35 +84,33 @@ exports.registerUser = [
       if (user) {
         return res.status(400).json({ msg: "User already exists" });
       }
-      user = new User({ email, phone, name, password });
+
+      user = new User({
+        email,
+        phone,
+        name,
+        password,
+      });
+
       const salt = await bcrypt.genSalt(10);
       user.password = await bcrypt.hash(password, salt);
-      console.log(`Hashed Password: ${user.password}`); // Debugging print
+
       await user.save();
 
-      const payload = { user: { id: user.id } };
-      jwt.sign(
-        payload,
-        process.env.JWT_SECRET,
-        { expiresIn: "1h" },
-        (err, token) => {
-          if (err) throw err;
-          res.json({ token });
-        }
-      );
+      // Call the sendOtp function to send the OTP
+      await sendOtp({ body: { phone } }, res);
     } catch (err) {
       console.error(err.message);
       res.status(500).send("Server error");
     }
   },
 ];
-
 /**
  * Login User
  * @route POST /api/users/login
  * @access Public
  */
-exports.loginUser = [
+const loginUser = [
   check("phone", "Please include a valid phone number").not().isEmpty(),
   check("password", "Password is required").exists(),
   async (req, res) => {
@@ -124,25 +166,18 @@ exports.loginUser = [
   },
 ];
 
-exports.changePassword = [
+const changePassword = [
   check("oldPassword", "Old password is required").exists(),
   check("newPassword", "New password must be 6 or more characters").isLength({
     min: 6,
   }),
-  check("confirmNewPassword", "Confirm new password is required")
-    .not()
-    .isEmpty(),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { oldPassword, newPassword, confirmNewPassword } = req.body;
-
-    if (newPassword !== confirmNewPassword) {
-      return res.status(400).json({ msg: "New passwords do not match" });
-    }
+    const { oldPassword, newPassword } = req.body;
 
     try {
       const user = await User.findById(req.user.id);
@@ -153,9 +188,41 @@ exports.changePassword = [
       }
 
       user.password = await bcrypt.hash(newPassword, 10);
+      user.otpVerified = false; // Mark as not verified by OTP
+
       await user.save();
 
-      res.json({ msg: "Password changed successfully" });
+      // Send OTP after changing the password
+      const otp = crypto.randomInt(100000, 999999).toString();
+      const otpExpiry = Date.now() + 10 * 60 * 1000; // OTP expires in 10 minutes
+
+      user.otp = otp;
+      user.otpExpiry = otpExpiry;
+
+      await user.save();
+
+      // Send the OTP via SMS or another service
+      const options = {
+        method: "POST",
+        url: "https://instawhats.com/api/create-message",
+        headers: {},
+        formData: {
+          appkey: "3ce72a03-562b-42f2-b107-600fcc2093cd",
+          authkey: "v83Rh1D4KcZyOvWsWPIR7VJWzKB12XFjZeXIwQNzY7hBbLCDZo",
+          to: user.phone,
+          message: `Your OTP code is: ${otp}`,
+          file: "",
+        },
+      };
+
+      request(options, (error, response) => {
+        if (error) {
+          return res.status(500).json({ error: error.message });
+        }
+        return res.status(200).json({
+          msg: "Password changed successfully. OTP sent to verify the change.",
+        });
+      });
     } catch (err) {
       console.error(err.message);
       res.status(500).send("Server error");
@@ -163,12 +230,44 @@ exports.changePassword = [
   },
 ];
 
+const verifyOtpForPasswordChange = async (req, res) => {
+  const { otp } = req.body;
+
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Check if the OTP has expired
+    if (Date.now() > user.otpExpiry) {
+      return res.status(400).json({ message: "OTP has expired" });
+    }
+
+    // Check if the OTP matches
+    if (user.otp !== otp) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    // Mark the OTP as verified
+    user.otpVerified = true;
+    user.otp = undefined; // Clear OTP
+    user.otpExpiry = undefined; // Clear OTP expiry
+
+    await user.save();
+
+    res.status(200).json({
+      message: "OTP verified successfully. Your password change is confirmed.",
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 /**
  * Update User Details
  * @route PUT /api/users/update-details
  * @access Private
  */
-exports.addUserDetails = [
+const addUserDetails = [
   check("firstName", "First name is required").not().isEmpty(),
   check("lastName", "Last name is required").not().isEmpty(),
   check("birthDate", "Birth date is required").not().isEmpty(),
@@ -221,7 +320,7 @@ exports.addUserDetails = [
   },
 ];
 
-exports.updateUserDetails = [
+const updateUserDetails = [
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -262,7 +361,7 @@ exports.updateUserDetails = [
   },
 ];
 
-exports.updateAccount = [
+const updateAccount = [
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -295,7 +394,7 @@ exports.updateAccount = [
  * @route GET /api/users/online-friends
  * @access Private
  */
-exports.getOnlineFriends = async (req, res) => {
+const getOnlineFriends = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate("friends");
     const onlineUsers = getOnlineUsers(); // Get the current state of online users
@@ -327,7 +426,7 @@ exports.getOnlineFriends = async (req, res) => {
  * @route GET /api/users/details
  * @access Private
  */
-exports.getMyDetails = async (req, res) => {
+const getMyDetails = async (req, res) => {
   try {
     const user = await User.findById(req.user.id)
       .select(
@@ -390,7 +489,7 @@ exports.getMyDetails = async (req, res) => {
  * @route GET /api/users/:userId/details
  * @access Private
  */
-exports.getUserDetails = async (req, res) => {
+const getUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId)
       .select(
@@ -465,7 +564,7 @@ exports.getUserDetails = async (req, res) => {
 };
 
 // Get all users
-exports.getAllUsers = async (req, res) => {
+const getAllUsers = async (req, res) => {
   try {
     const {
       gender,
@@ -531,79 +630,69 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
-exports.requestPasswordReset = async (req, res) => {
+const requestPasswordReset = async (req, res) => {
   const { phone } = req.body;
   try {
     const user = await User.findOne({ phone });
     if (!user) return res.status(400).json({ message: "User not found" });
 
-    const resetToken = crypto.randomBytes(20).toString("hex");
-    const resetTokenExpiry = Date.now() + 3600000; // 1 hour
+    // Generate OTP
+    const otp = crypto.randomInt(100000, 999999).toString();
+    const otpExpiry = Date.now() + 10 * 60 * 1000; // OTP expires in 10 minutes
 
-    user.resetToken = resetToken;
-    user.resetTokenExpiry = resetTokenExpiry;
+    // Set OTP and mark as not verified by OTP
+    user.otp = otp;
+    user.otpExpiry = otpExpiry;
+    user.otpVerified = false; // Mark as not verified by OTP
+
     await user.save();
 
-    // Send the reset token via email or SMS
-    // const resetMessage = `Your verification code is ${resetToken}`;
-    // const mailOptions = {
-    //   to: user.email,
-    //   from: process.env.EMAIL_USER,
-    //   subject: "Password Reset",
-    //   text: resetMessage,
-    // };
+    // Send the OTP via SMS or an external service
+    const options = {
+      method: "POST",
+      url: "https://instawhats.com/api/create-message",
+      headers: {},
+      formData: {
+        appkey: "3ce72a03-562b-42f2-b107-600fcc2093cd",
+        authkey: "v83Rh1D4KcZyOvWsWPIR7VJWzKB12XFjZeXIwQNzY7hBbLCDZo",
+        to: phone,
+        message: `Your OTP code is: ${otp}`,
+        file: "",
+      },
+    };
 
-    // transporter.sendMail(mailOptions, (err, response) => {
-    //   if (err) {
-    //     console.error("Error sending email: ", err);
-    //     res.status(500).json({ message: "Error sending email" });
-    //   } else {
-    //     res
-    //       .status(200)
-    //       .json({ message: "Verification code sent to your phone" });
-    //   }
-    // });
-  } catch (error) {
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-exports.verifyResetToken = async (req, res) => {
-  const { token } = req.body;
-  try {
-    const user = await User.findOne({
-      resetToken: token,
-      resetTokenExpiry: { $gt: Date.now() }, // Ensure the token has not expired
+    request(options, (error, response) => {
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+      return res.status(200).json({ message: "OTP sent successfully" });
     });
-    if (!user)
-      return res.status(400).json({ message: "Invalid or expired token" });
-
-    res.status(200).json({ message: "Token is valid" });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
 };
 
-exports.resetPassword = async (req, res) => {
-  const { token, password, confirmPassword } = req.body;
+const resetPassword = async (req, res) => {
+  const { phone, newPassword, confirmNewPassword } = req.body;
 
-  if (password !== confirmPassword) {
+  if (newPassword !== confirmNewPassword) {
     return res.status(400).json({ message: "Passwords do not match" });
   }
 
   try {
     const user = await User.findOne({
-      resetToken: token,
-      resetTokenExpiry: { $gt: Date.now() }, // Ensure the token has not expired
+      phone,
+      otpVerified: true, // Ensure OTP was verified
     });
     if (!user)
-      return res.status(400).json({ message: "Invalid or expired token" });
+      return res.status(400).json({ message: "OTP verification required" });
 
     // Hash and save the new password
-    user.password = await bcrypt.hash(password, 10);
-    // Clear the resetToken and resetTokenExpiry fields
-    user.resetToken = undefined;
-    user.resetTokenExpiry = undefined;
+    user.password = await bcrypt.hash(newPassword, 10);
+    // Clear the OTP fields
+    user.otp = undefined;
+    user.otpExpiry = undefined;
+    user.otpVerified = undefined;
     await user.save();
 
     res.status(200).json({ message: "Password reset successful" });
@@ -612,7 +701,7 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
-exports.searchUsers = async (req, res) => {
+const searchUsers = async (req, res) => {
   try {
     const { query } = req.query;
 
@@ -679,8 +768,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
 });
-
-exports.uploadProfilePicture = [
+const uploadProfilePicture = [
   upload.single("profilePicture"), // Multer middleware for handling single file upload
   async (req, res) => {
     try {
@@ -725,3 +813,76 @@ exports.uploadProfilePicture = [
     }
   },
 ];
+
+// Controller function to verify OTP
+const verifyOTP = async (req, res) => {
+  const { phone, otp } = req.body;
+
+  try {
+    // Find the user by phone number
+    const user = await User.findOne({ phone: phone });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if the OTP has expired
+    if (Date.now() > user.otpExpiry) {
+      return res.status(400).json({ message: "OTP has expired" });
+    }
+
+    // Check if the OTP matches
+    if (user.otp !== otp) {
+      console.log(user.otp);
+      console.log(otp);
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
+
+    // Mark the user as verified
+    user.otpVerified = true;
+    // Optionally clear the OTP fields after successful verification
+    user.otp = undefined;
+    user.otpExpiry = undefined;
+
+    await user.save();
+
+    // Generate JWT token
+    const payload = { user: { id: user.id } };
+    jwt.sign(
+      payload,
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }, // Set token expiration time
+      (err, token) => {
+        if (err) throw err;
+        return res.status(200).json({
+          message: "OTP verified successfully",
+          token, // Send the JWT token in the response
+        });
+      }
+    );
+  } catch (error) {
+    console.error(error.message);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+module.exports = {
+  sendOtp,
+  registerUser,
+  loginUser,
+  changePassword,
+  verifyOtpForPasswordChange,
+  addUserDetails,
+  updateUserDetails,
+  updateAccount,
+  getOnlineFriends,
+  getMyDetails,
+  getUserDetails,
+  requestPasswordReset,
+
+  resetPassword,
+  uploadProfilePicture,
+  getAllUsers,
+  searchUsers,
+  verifyOTP,
+};

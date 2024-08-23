@@ -1,5 +1,5 @@
 const mongoose = require("mongoose");
-const Skill = require("../models/Skill");
+const Skill = require("../models/skill");
 const User = require("../models/User");
 
 // Create a new skill
