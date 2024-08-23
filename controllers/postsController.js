@@ -47,10 +47,17 @@ exports.createPost = async (req, res) => {
   }
 };
 
-// Get all posts with optional filters including location
+// Get all posts with optional filters including location and pagination
 exports.getAllPosts = async (req, res) => {
   try {
-    const { gender, distance, longitude, latitude } = req.query;
+    const {
+      gender,
+      distance,
+      longitude,
+      latitude,
+      page = 1,
+      limit = 20,
+    } = req.query;
 
     let query = { isArchived: false }; // Exclude archived posts by default
 
@@ -71,9 +78,14 @@ exports.getAllPosts = async (req, res) => {
       };
     }
 
+    // Calculate pagination values
+    const skip = (page - 1) * limit;
+
     const posts = await Post.find(query)
       .sort({ date: -1 })
-      .populate("user", ["name", "major"]); // Populate user details
+      .populate("user", ["name", "major"]) // Populate user details
+      .skip(skip)
+      .limit(parseInt(limit));
 
     res.json(posts);
   } catch (err) {
@@ -82,11 +94,17 @@ exports.getAllPosts = async (req, res) => {
   }
 };
 
-// Get all posts from friends with optional filters
+// Get all posts from friends with optional filters and pagination
 exports.getFriendsPosts = async (req, res) => {
   try {
-    // Extract query parameters for filtering
-    const { gender, distance, longitude, latitude } = req.query;
+    const {
+      gender,
+      distance,
+      longitude,
+      latitude,
+      page = 1,
+      limit = 20,
+    } = req.query;
 
     // Fetch the current user and their friends
     const user = await User.findById(req.user.id).populate("friends", [
@@ -119,10 +137,15 @@ exports.getFriendsPosts = async (req, res) => {
       };
     }
 
+    // Calculate pagination values
+    const skip = (page - 1) * limit;
+
     // Fetch posts based on filters, sorting by date (most recent first)
     const posts = await Post.find(query)
       .sort({ date: -1 })
-      .populate("user", ["name", "major"]); // Populate user details
+      .populate("user", ["name", "major"]) // Populate user details
+      .skip(skip)
+      .limit(parseInt(limit));
 
     res.json(posts);
   } catch (err) {
@@ -131,14 +154,20 @@ exports.getFriendsPosts = async (req, res) => {
   }
 };
 
-// Get all posts by a specific user ID
+// Get all posts by a specific user ID with pagination
 exports.getPostsByUserId = async (req, res) => {
   const { userId } = req.params;
+  const { page = 1, limit = 20 } = req.query;
 
   try {
+    // Calculate pagination values
+    const skip = (page - 1) * limit;
+
     const posts = await Post.find({ user: userId, isArchived: false }) // Exclude archived posts
       .sort({ date: -1 })
-      .populate("user", ["name", "major"]); // Populate user details
+      .populate("user", ["name", "major"]) // Populate user details
+      .skip(skip)
+      .limit(parseInt(limit));
 
     if (!posts || posts.length === 0) {
       return res.status(404).json({ msg: "No posts found for this user" });
