@@ -12,6 +12,7 @@ const multer = require("multer");
 const crypto = require("crypto"); // For generating OTP
 const request = require("request"); // For making HTTP requests
 const otpStore = require("../temp/otpStore"); // Importing the OTP store
+const request = require("request");
 
 const sendOtp = async (req, res) => {
   const { phone } = req.body;
@@ -19,18 +20,19 @@ const sendOtp = async (req, res) => {
   const otpExpiry = Date.now() + 10 * 60 * 1000; // OTP expires in 10 minutes
 
   try {
-    //Find the user by phone number
-    let user = await User.findOne({ phone: phone });
+    // Find the user by phone number
+    let user = await User.findOne({ phone });
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    //Update the user's OTP and expiration time
+    // Update the user's OTP and expiration time
     user.otp = otp;
     user.otpExpiry = otpExpiry;
     await user.save();
 
-    const options = {
+    // First API options
+    const firstApiOptions = {
       method: "POST",
       url: "https://instawhats.com/api/create-message",
       headers: {},
@@ -43,15 +45,50 @@ const sendOtp = async (req, res) => {
       },
     };
 
-    request(options, (error, response) => {
-      if (error) {
-        return res.status(500).json({ error: error.message });
+    // Second API options (as a fallback)
+    const secondApiOptions = {
+      method: "POST",
+      url: "https://example.com/api/send-sms", // Replace with the actual second API URL
+      headers: {},
+      formData: {
+        apiKey: "your-second-api-key", // Replace with the actual API key for the second service
+        to: phone,
+        message: `Your OTP code is: ${otp}`,
+      },
+    };
+
+    // Attempt to send OTP using the first API
+    request(firstApiOptions, function (error, response) {
+      if (error || response.statusCode !== 200) {
+        console.error("First API failed, attempting second API...");
+
+        // If the first API fails, try the second API
+        request(secondApiOptions, function (error, response) {
+          if (error || response.statusCode !== 200) {
+            console.error("Both APIs failed.");
+            return res
+              .status(500)
+              .json({ error: "Failed to send OTP via both APIs." });
+          }
+          console.log("OTP sent successfully via the second API.");
+          return res
+            .status(200)
+            .json({ message: "OTP sent successfully via the second API." });
+        });
+      } else {
+        console.log("OTP sent successfully via the first API.");
+        return res
+          .status(200)
+          .json({ message: "OTP sent successfully via the first API." });
       }
-      return res.status(200).json({ message: "OTP sent successfully" });
     });
   } catch (error) {
     return res.status(500).json({ error: "Server error, OTP not sent" });
   }
+};
+
+module.exports = {
+  sendOtp,
 };
 
 /**
@@ -192,37 +229,7 @@ const changePassword = [
 
       await user.save();
 
-      // Send OTP after changing the password
-      const otp = crypto.randomInt(100000, 999999).toString();
-      const otpExpiry = Date.now() + 10 * 60 * 1000; // OTP expires in 10 minutes
-
-      user.otp = otp;
-      user.otpExpiry = otpExpiry;
-
-      await user.save();
-
-      // Send the OTP via SMS or another service
-      const options = {
-        method: "POST",
-        url: "https://instawhats.com/api/create-message",
-        headers: {},
-        formData: {
-          appkey: "3ce72a03-562b-42f2-b107-600fcc2093cd",
-          authkey: "v83Rh1D4KcZyOvWsWPIR7VJWzKB12XFjZeXIwQNzY7hBbLCDZo",
-          to: user.phone,
-          message: `Your OTP code is: ${otp}`,
-          file: "",
-        },
-      };
-
-      request(options, (error, response) => {
-        if (error) {
-          return res.status(500).json({ error: error.message });
-        }
-        return res.status(200).json({
-          msg: "Password changed successfully. OTP sent to verify the change.",
-        });
-      });
+      await sendOtp({ body: { phone } }, res);
     } catch (err) {
       console.error(err.message);
       res.status(500).send("Server error");
@@ -694,7 +701,7 @@ const resetPassword = async (req, res) => {
     user.otpExpiry = undefined;
     user.otpVerified = undefined;
     await user.save();
-
+    await sendOtp({ body: { phone } }, res);
     res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
