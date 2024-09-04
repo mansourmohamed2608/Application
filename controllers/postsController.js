@@ -83,7 +83,7 @@ exports.getAllPosts = async (req, res) => {
 
     const posts = await Post.find(query)
       .sort({ date: -1 })
-      .populate("user", ["name", "major"]) // Populate user details
+      .populate("user", ["name", "major", "postsCount", "educationLevel", "profilePicture"]) // Populate user details including educationLevel and profilePicture
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -93,6 +93,8 @@ exports.getAllPosts = async (req, res) => {
     res.status(500).send("Server Error");
   }
 };
+
+
 
 // Get all posts from friends with optional filters and pagination
 exports.getFriendsPosts = async (req, res) => {
@@ -143,7 +145,7 @@ exports.getFriendsPosts = async (req, res) => {
     // Fetch posts based on filters, sorting by date (most recent first)
     const posts = await Post.find(query)
       .sort({ date: -1 })
-      .populate("user", ["name", "major"]) // Populate user details
+      .populate("user", ["name", "major", "postsCount", "educationLevel", "profilePicture"]) // Populate user details including educationLevel and profilePicture
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -153,6 +155,7 @@ exports.getFriendsPosts = async (req, res) => {
     res.status(500).send("Server Error");
   }
 };
+
 
 // Get all posts by a specific user ID with pagination
 exports.getPostsByUserId = async (req, res) => {
@@ -165,7 +168,7 @@ exports.getPostsByUserId = async (req, res) => {
 
     const posts = await Post.find({ user: userId, isArchived: false }) // Exclude archived posts
       .sort({ date: -1 })
-      .populate("user", ["name", "major"]) // Populate user details
+      .populate("user", ["name", "major", "postsCount", "educationLevel", "profilePicture"]) // Populate user details including educationLevel and profilePicture
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -179,6 +182,8 @@ exports.getPostsByUserId = async (req, res) => {
     res.status(500).send("Server Error");
   }
 };
+
+
 
 // Update a post by ID
 exports.updatePost = async (req, res) => {
@@ -362,6 +367,10 @@ exports.getPostDetailsByPostId = async (req, res) => {
   try {
     const post = await Post.findById(postId)
       .populate({
+        path: "user",
+        select: "name major postsCount educationLevel profilePicture", // Populate user details including educationLevel and profilePicture
+      })
+      .populate({
         path: "comments.user",
         select: "name",
       })
@@ -380,6 +389,14 @@ exports.getPostDetailsByPostId = async (req, res) => {
       major: post.major,
       reactsCount: Array.from(post.reacts.values()).reduce((a, b) => a + b, 0),
       date: timeSince(post.date),
+      user: {
+        name: post.user.name,
+        major: post.user.major,
+        educationLevel: post.user.educationLevel,
+        profilePicture: post.user.profilePicture
+          ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${post.user.profilePicture}`
+          : null,
+      },
       comments: post.comments.map((comment) => ({
         _id: comment._id,
         body: comment.body,
@@ -403,6 +420,77 @@ exports.getPostDetailsByPostId = async (req, res) => {
     };
 
     res.json(formattedPost);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+};
+
+// Add a comment to a post
+exports.addComment = async (req, res) => {
+  const { postId } = req.params;
+  const { body } = req.body;
+
+  if (!body) {
+    return res.status(400).json({ msg: "Comment body is required" });
+  }
+
+  try {
+    const post = await Post.findById(postId);
+
+    if (!post) {
+      return res.status(404).json({ msg: "Post not found" });
+    }
+
+    const newComment = {
+      user: req.user.id,
+      body,
+    };
+
+    post.comments.push(newComment);
+    await post.save();
+
+    // Populate the user info of the comment before returning
+    const populatedPost = await Post.findById(postId)
+      .populate("user", "name major")
+      .populate({
+        path: "comments.user",
+        select: "name profilePicture", // Populate the user info of the comment
+      });
+
+    res.json(populatedPost);
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+};
+// Add a reaction to a post
+exports.addReactionToPost = async (req, res) => {
+  const { postId } = req.params;
+  const { reaction } = req.body;
+
+  if (!reaction) {
+    return res.status(400).json({ msg: "Reaction is required" });
+  }
+
+  try {
+    const post = await Post.findById(postId);
+
+    if (!post) {
+      return res.status(404).json({ msg: "Post not found" });
+    }
+
+    // Increment the reaction count for the given reaction type
+    post.reacts.set(reaction, (post.reacts.get(reaction) || 0) + 1);
+
+    await post.save();
+
+    const populatedPost = await Post.findById(postId).populate("user", [
+      "name",
+      "major",
+    ]);
+
+    res.json(populatedPost);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");

@@ -22,6 +22,7 @@ router.get("/getFriendsPosts", auth, postController.getFriendsPosts);
 // @desc    Get all posts by the logged-in user
 // @access  Private
 router.get("/GetUserposts/:userId", auth, postController.getPostsByUserId);
+
 // @route   PUT /api/posts/:postId
 // @desc    Update a post by ID
 // @access  Private
@@ -31,10 +32,12 @@ router.put("/updatePost/:postId", auth, postController.updatePost);
 // @desc    Delete a post by ID
 // @access  Private
 router.delete("/deletePost/:postId", auth, postController.deletePost);
+
 // @route   PUT /api/posts/archive/:postId
 // @desc    Archive a post by ID
 // @access  Private
 router.put("/archivePost/:postId", auth, postController.archivePost);
+
 // @route   PUT /api/posts/:postId/comments/:commentId/reacts
 // @desc    React to a comment
 // @access  Private
@@ -75,4 +78,17 @@ router.post(
 // @desc    Get post by post ID with comments, replies, reacts, and time since creation
 // @access  Private
 router.get("/:postId/details", auth, postController.getPostDetailsByPostId);
+
+// ----------------------- New Routes -----------------------
+
+// @route   POST /api/posts/:postId/comments
+// @desc    Add a comment to a post
+// @access  Private
+router.post("/:postId/comments", auth, postController.addComment);
+
+// @route   PUT /api/posts/:postId/react
+// @desc    Add a reaction to a post
+// @access  Private
+router.put("/:postId/react", auth, postController.addReactionToPost);
+
 module.exports = router;

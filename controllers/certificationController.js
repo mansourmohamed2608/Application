@@ -51,7 +51,8 @@ exports.addCertification = (req, res) => {
       return res.status(400).json({ errors: errors.array() });
     }
 
-    const { title, year } = req.body;
+    const { title, issuer, issueDate, expirationDate, certificateLink } =
+      req.body;
     let documentPath = req.file ? req.file.path : null;
 
     // Replace any backslashes with forward slashes
@@ -63,7 +64,10 @@ exports.addCertification = (req, res) => {
       const newCertification = new Certification({
         userId: req.user.id,
         title,
-        year,
+        issuer, // New Field: Issuer
+        issueDate, // New Field: Issue Date
+        expirationDate, // New Field: Expiration Date (optional)
+        certificateLink, // New Field: Certificate Link (optional)
         document: documentPath,
       });
 
@@ -84,7 +88,8 @@ exports.updateCertification = (req, res) => {
     }
 
     const { certificationId } = req.params;
-    const { title, year } = req.body;
+    const { title, issuer, issueDate, expirationDate, certificateLink } =
+      req.body;
 
     try {
       const certification = await Certification.findById(certificationId);
@@ -98,9 +103,12 @@ exports.updateCertification = (req, res) => {
         return res.status(401).json({ msg: "User not authorized" });
       }
 
-      // Update title and year if provided
+      // Update title, issuer, issueDate, expirationDate, certificateLink if provided
       if (title) certification.title = title;
-      if (year) certification.year = year;
+      if (issuer) certification.issuer = issuer;
+      if (issueDate) certification.issueDate = issueDate;
+      if (expirationDate) certification.expirationDate = expirationDate;
+      if (certificateLink) certification.certificateLink = certificateLink;
 
       // Handle document replacement
       if (req.file) {
@@ -148,6 +156,7 @@ exports.getCertificates = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+
 exports.getCertificateById = async (req, res) => {
   const { certificationId } = req.params;
 

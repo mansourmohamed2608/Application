@@ -12,8 +12,45 @@ const multer = require("multer");
 const crypto = require("crypto"); // For generating OTP
 const request = require("request"); // For making HTTP requests
 const otpStore = require("../temp/otpStore"); // Importing the OTP store
-const request = require("request");
 
+const profilePhotosDir = path.join(__dirname, "../uploads/profilephotos");
+if (!fs.existsSync(profilePhotosDir)) {
+  fs.mkdirSync(profilePhotosDir, { recursive: true });
+}
+
+// Configure Multer storage
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, profilePhotosDir);
+  },
+  filename: function (req, file, cb) {
+    const filename = `${req.user.id}-${Date.now()}${path.extname(
+      file.originalname
+    )}`;
+    cb(null, filename);
+  },
+});
+
+// File filter to check for image types
+const fileFilter = (req, file, cb) => {
+  const allowedMimeTypes = ["image/jpeg", "image/png", "image/gif"];
+
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(
+      new Error(
+        "Invalid file type. Only JPEG, PNG, and GIF images are allowed."
+      ),
+      false
+    );
+  }
+};
+
+const upload = multer({
+  storage: storage,
+  fileFilter: fileFilter,
+});
 const sendOtp = async (req, res) => {
   const { phone } = req.body;
   const otp = crypto.randomInt(100000, 999999).toString(); // Generate OTP
@@ -182,7 +219,20 @@ const loginUser = [
         return res.status(400).json({ msg: "Invalid Credentials" });
       }
 
+      // Check if the user has completed their profile details
+      const requiredFields = [
+        "firstName",
+        "lastName",
+        "birthDate",
+        "gender",
+        "educationLevel",
+        "major",
+      ];
+
+      const isProfileComplete = requiredFields.every((field) => user[field]);
+
       const payload = { user: { id: user.id } };
+
       jwt.sign(
         payload,
         process.env.JWT_SECRET,
@@ -193,7 +243,12 @@ const loginUser = [
             throw err;
           }
           console.log(`Generated Token: ${token}`);
-          res.json({ token });
+
+          // Return the token and profile completion status
+          res.json({
+            token,
+            profileComplete: isProfileComplete,
+          });
         }
       );
     } catch (err) {
@@ -225,7 +280,7 @@ const changePassword = [
       }
 
       user.password = await bcrypt.hash(newPassword, 10);
-      user.otpVerified = false; // Mark as not verified by OTP
+      user.otpVerified = false;
 
       await user.save();
 
@@ -275,6 +330,7 @@ const verifyOtpForPasswordChange = async (req, res) => {
  * @access Private
  */
 const addUserDetails = [
+  upload.single("profilePicture"), // Handle profile picture upload
   check("firstName", "First name is required").not().isEmpty(),
   check("lastName", "Last name is required").not().isEmpty(),
   check("birthDate", "Birth date is required").not().isEmpty(),
@@ -307,6 +363,20 @@ const addUserDetails = [
         return res.status(404).json({ msg: "User not found" });
       }
 
+      // Handle profile picture upload
+      if (req.file) {
+        if (user.profilePicture) {
+          const oldProfilePicturePath = path.join(
+            profilePhotosDir,
+            user.profilePicture
+          );
+          if (fs.existsSync(oldProfilePicturePath)) {
+            fs.unlinkSync(oldProfilePicturePath);
+          }
+        }
+        user.profilePicture = req.file.filename;
+      }
+
       user.firstName = firstName;
       user.lastName = lastName;
       user.birthDate = birthDate;
@@ -317,9 +387,13 @@ const addUserDetails = [
       user.universityName = universityName;
       user.info = info;
       user.address = address;
+
       await user.save();
 
-      res.json({ msg: "User details added successfully" });
+      res.json({
+        msg: "User details added successfully",
+        profilePicture: user.profilePicture,
+      });
     } catch (err) {
       console.error(err.message);
       res.status(500).send("Server error");
@@ -328,6 +402,7 @@ const addUserDetails = [
 ];
 
 const updateUserDetails = [
+  upload.single("profilePicture"), // Handle profile picture upload
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -350,6 +425,20 @@ const updateUserDetails = [
         return res.status(404).json({ msg: "User not found" });
       }
 
+      // Handle profile picture upload
+      if (req.file) {
+        if (user.profilePicture) {
+          const oldProfilePicturePath = path.join(
+            profilePhotosDir,
+            user.profilePicture
+          );
+          if (fs.existsSync(oldProfilePicturePath)) {
+            fs.unlinkSync(oldProfilePicturePath);
+          }
+        }
+        user.profilePicture = req.file.filename;
+      }
+
       user.firstName = firstName;
       user.lastName = lastName;
       user.birthDate = birthDate;
@@ -360,7 +449,10 @@ const updateUserDetails = [
 
       await user.save();
 
-      res.json({ msg: "User details updated successfully" });
+      res.json({
+        msg: "User details updated successfully",
+        profilePicture: user.profilePicture,
+      });
     } catch (err) {
       console.error(err.message);
       res.status(500).send("Server error");
@@ -369,6 +461,7 @@ const updateUserDetails = [
 ];
 
 const updateAccount = [
+  check("email", "Please include a valid email").isEmail(),
   async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -381,6 +474,14 @@ const updateAccount = [
       let user = await User.findById(req.user.id);
       if (!user) {
         return res.status(404).json({ msg: "User not found" });
+      }
+
+      // Check if the email is already in use by another user
+      if (email !== user.email) {
+        let emailExists = await User.findOne({ email: email });
+        if (emailExists) {
+          return res.status(400).json({ msg: "Email is already in use" });
+        }
       }
 
       user.name = name;
@@ -405,11 +506,13 @@ const getOnlineFriends = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).populate("friends");
     const onlineUsers = getOnlineUsers(); // Get the current state of online users
+
     const onlineFriends = user.friends.filter(
-      (friend) => onlineUsers[friend.id]
+      (friend) =>
+        onlineUsers[friend.id] && friend._id.toString() !== req.user.id // Exclude the logged-in user
     );
 
-    // Attach the profile picture URL to each friend
+    // Attach the profile picture URL and mark each friend as `isFriend`
     const onlineFriendsWithProfilePics = onlineFriends.map((friend) => {
       return {
         ...friend.toObject(),
@@ -418,6 +521,7 @@ const getOnlineFriends = async (req, res) => {
               friend.profilePicture
             }`
           : null,
+        isFriend: true, // Since this is the friends list, they are all friends
       };
     });
 
@@ -496,6 +600,7 @@ const getMyDetails = async (req, res) => {
  * @route GET /api/users/:userId/details
  * @access Private
  */
+// Get user details by ID and check if they are a friend
 const getUserDetails = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId)
@@ -504,73 +609,34 @@ const getUserDetails = async (req, res) => {
       )
       .populate("certifications skills posts");
 
-    if (!user) {
-      return res.status(404).json({ msg: "User not found" });
+    if (!user || user._id.toString() === req.user.id) {
+      return res
+        .status(404)
+        .json({ msg: "User not found or can't view your own details" });
     }
 
     const loggedInUser = await User.findById(req.user.id).select("friends");
 
-    // Ensure `friends` array is defined
-    const userFriends = user.friends || [];
-    const loggedInUserFriends = loggedInUser.friends || [];
+    const isFriend = loggedInUser.friends.includes(user._id);
 
-    const mutualFriends = userFriends.filter((friendId) =>
-      loggedInUserFriends.includes(friendId.toString())
-    );
-
-    const populatedMutualFriends = await User.find({
-      _id: { $in: mutualFriends },
-    }).select("name profilePicture");
-
-    const profilePictureUrl = `${req.protocol}://${req.get(
-      "host"
-    )}/uploads/profilephotos/${user.profilePicture}`;
-
-    // Populate certifications with URLs
-    const populatedCertifications = await Certification.find({
-      userId: user._id,
-    }).sort({
-      year: -1,
-    });
-
-    const certificationsWithUrl = populatedCertifications.map((cert) => {
-      const documentUrl = cert.document
-        ? `${req.protocol}://${req.get(
-            "host"
-          )}/uploads/certifications/${path.basename(cert.document)}`
-        : null;
-      return {
-        ...cert.toObject(),
-        documentUrl,
-      };
-    });
-
-    // Populate skills
-    const populatedSkills = await Skill.find({ userId: user._id }).sort({
-      title: 1,
-    });
-
-    // Populate posts
-    const populatedPosts = await Post.find({ user: user._id })
-      .populate("user", "name major profilePicture")
-      .sort({ date: -1 });
+    const profilePictureUrl = user.profilePicture
+      ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${
+          user.profilePicture
+        }`
+      : null;
 
     res.json({
       ...user.toObject(),
+      isFriend, // Include the `isFriend` status
       profilePictureUrl,
-      mutualFriends: populatedMutualFriends,
-      mutualFriendsCount: populatedMutualFriends.length,
-      posts: populatedPosts,
-      skills: populatedSkills,
-      certifications: certificationsWithUrl, // Include the populated certifications with URLs in the response
     });
   } catch (err) {
     console.error(err.message);
-    res.status(500).send("Server error");
+    res.status(500).send("Server Error");
   }
 };
 
-// Get all users
+// Get all users with optional filters including location and pagination
 const getAllUsers = async (req, res) => {
   try {
     const {
@@ -578,59 +644,51 @@ const getAllUsers = async (req, res) => {
       distance,
       longitude,
       latitude,
-      universityName,
-      major,
-      minAge,
-      maxAge,
+      page = 1,
+      limit = 20,
     } = req.query;
 
-    let query = {};
+    // Fetch the logged-in user to access their friends list
+    const loggedInUser = await User.findById(req.user.id).select("friends");
 
-    if (gender) query.gender = gender;
-    if (universityName) query.universityName = universityName;
-    if (major) query.major = major;
+    let query = { _id: { $ne: req.user.id } }; // Exclude the current user from results
 
-    if (minAge || maxAge) {
-      const today = new Date();
-      const currentYear = today.getFullYear();
-
-      if (minAge) {
-        const minBirthYear = currentYear - minAge;
-        query.birthDate = { $lte: new Date(`${minBirthYear}-12-31`) };
-      }
-
-      if (maxAge) {
-        const maxBirthYear = currentYear - maxAge;
-        query.birthDate = query.birthDate || {};
-        query.birthDate.$gte = new Date(`${maxBirthYear}-01-01`);
-      }
+    if (gender) {
+      query.gender = gender;
     }
 
+    // Filter by location if longitude, latitude, and distance are provided
     if (distance && longitude && latitude) {
       query.location = {
         $geoWithin: {
           $centerSphere: [
             [parseFloat(longitude), parseFloat(latitude)],
-            parseFloat(distance) / 3963.2,
+            parseFloat(distance) / 3963.2, // Earth's radius in miles
           ],
         },
       };
     }
 
-    const users = await User.find(
-      query,
-      "name _id major universityName profilePicture"
-    );
+    // Pagination
+    const skip = (page - 1) * limit;
 
-    // Add profile picture URL to each user
-    const usersWithProfilePictureUrl = users.map((user) => ({
+    const users = await User.find(query)
+      .select("name major educationLevel profilePicture") // Fetch required fields
+      .skip(skip)
+      .limit(Math.min(limit, 100)); // Cap limit to 100
+
+    // Add 'isFriend' field based on whether the user is in the friends array
+    const usersWithFriendStatus = users.map((user) => ({
       ...user.toObject(),
-      profilePictureUrl: `${req.protocol}://${req.get(
-        "host"
-      )}/uploads/profilephotos/${user.profilePicture}`,
+      isFriend: loggedInUser.friends.includes(user._id),
+      profilePictureUrl: user.profilePicture
+        ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${
+            user.profilePicture
+          }`
+        : null,
     }));
 
-    res.json(usersWithProfilePictureUrl);
+    res.json(usersWithFriendStatus);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
@@ -654,25 +712,12 @@ const requestPasswordReset = async (req, res) => {
 
     await user.save();
 
-    // Send the OTP via SMS or an external service
-    const options = {
-      method: "POST",
-      url: "https://instawhats.com/api/create-message",
-      headers: {},
-      formData: {
-        appkey: "3ce72a03-562b-42f2-b107-600fcc2093cd",
-        authkey: "v83Rh1D4KcZyOvWsWPIR7VJWzKB12XFjZeXIwQNzY7hBbLCDZo",
-        to: phone,
-        message: `Your OTP code is: ${otp}`,
-        file: "",
-      },
-    };
+    await sendOtp({ body: { phone } }, res);
 
     request(options, (error, response) => {
       if (error) {
         return res.status(500).json({ error: error.message });
       }
-      return res.status(200).json({ message: "OTP sent successfully" });
     });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
@@ -696,12 +741,7 @@ const resetPassword = async (req, res) => {
 
     // Hash and save the new password
     user.password = await bcrypt.hash(newPassword, 10);
-    // Clear the OTP fields
-    user.otp = undefined;
-    user.otpExpiry = undefined;
-    user.otpVerified = undefined;
-    await user.save();
-    await sendOtp({ body: { phone } }, res);
+
     res.status(200).json({ message: "Password reset successful" });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
@@ -716,65 +756,34 @@ const searchUsers = async (req, res) => {
       return res.status(400).json({ msg: "Query parameter is required" });
     }
 
+    const loggedInUser = await User.findById(req.user.id).select("friends");
+
     const users = await User.find(
-      { name: new RegExp(query, "i") },
+      {
+        name: new RegExp(query, "i"),
+        _id: { $ne: req.user.id }, // Exclude the currently logged-in user
+      },
       "name _id profilePicture"
     );
 
-    // Add profile picture URL to each user
-    const usersWithProfilePictureUrl = users.map((user) => ({
+    // Add profile picture URL and check if each user is a friend
+    const usersWithFriendStatus = users.map((user) => ({
       ...user.toObject(),
       profilePictureUrl: `${req.protocol}://${req.get(
         "host"
       )}/uploads/profilephotos/${user.profilePicture}`,
+      isFriend: loggedInUser.friends.includes(user._id), // Check if this user is a friend
     }));
 
-    res.json(usersWithProfilePictureUrl);
+    res.json(usersWithFriendStatus);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server error");
   }
 };
 
-const profilePhotosDir = path.join(__dirname, "../uploads/profilephotos");
-if (!fs.existsSync(profilePhotosDir)) {
-  fs.mkdirSync(profilePhotosDir, { recursive: true });
-}
-
-// Configure Multer storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, profilePhotosDir);
-  },
-  filename: function (req, file, cb) {
-    const filename = `${req.user.id}-${Date.now()}${path.extname(
-      file.originalname
-    )}`;
-    cb(null, filename);
-  },
-});
-
-// File filter to check for image types
-const fileFilter = (req, file, cb) => {
-  const allowedMimeTypes = ["image/jpeg", "image/png", "image/gif"];
-
-  if (allowedMimeTypes.includes(file.mimetype)) {
-    cb(null, true);
-  } else {
-    cb(
-      new Error(
-        "Invalid file type. Only JPEG, PNG, and GIF images are allowed."
-      ),
-      false
-    );
-  }
-};
-
 // Initialize Multer with storage and fileFilter
-const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
-});
+
 const uploadProfilePicture = [
   upload.single("profilePicture"), // Multer middleware for handling single file upload
   async (req, res) => {
@@ -886,7 +895,6 @@ module.exports = {
   getMyDetails,
   getUserDetails,
   requestPasswordReset,
-
   resetPassword,
   uploadProfilePicture,
   getAllUsers,
