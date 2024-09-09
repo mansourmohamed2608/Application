@@ -91,4 +91,22 @@ router.post("/:postId/comments", auth, postController.addComment);
 // @access  Private
 router.put("/:postId/react", auth, postController.addReactionToPost);
 
+// @route   DELETE /api/posts/:postId/comments/:commentId/replies/:replyId/react
+// @desc    Remove a reaction from a reply
+// @access  Private
+router.delete(
+  "/:postId/comments/:commentId/replies/:replyId/react",
+  auth,
+  postController.removeReaction
+);
+
+// @route   DELETE /api/posts/:postId/comments/:commentId/react
+// @desc    Remove a reaction from a comment
+// @access  Private
+router.delete("/:postId/comments/:commentId/react", auth, postController.removeReaction);
+
+// @route   DELETE /api/posts/:postId/react
+// @desc    Remove a reaction from a post
+// @access  Private
+router.delete("/:postId/react", auth, postController.removeReactionFromPost);
 module.exports = router;

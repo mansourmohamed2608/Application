@@ -12,7 +12,7 @@ const ReplySchema = new mongoose.Schema({
   },
   reacts: {
     type: Map,
-    of: Number,
+    of: [mongoose.Schema.Types.ObjectId], // Array of user IDs for each reaction type
     default: {},
   },
   replies: [this], // This allows nesting replies
@@ -34,7 +34,7 @@ const CommentSchema = new mongoose.Schema({
   },
   reacts: {
     type: Map,
-    of: Number,
+    of: [mongoose.Schema.Types.ObjectId], // Array of user IDs for each reaction type
     default: {},
   },
   replies: [ReplySchema],
@@ -60,7 +60,7 @@ const PostSchema = new mongoose.Schema({
   },
   reacts: {
     type: Map,
-    of: Number,
+    of: [mongoose.Schema.Types.ObjectId], // Array of user IDs for each reaction type
     default: {},
   },
   comments: [CommentSchema],

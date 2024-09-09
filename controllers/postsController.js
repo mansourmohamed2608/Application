@@ -1,6 +1,17 @@
 const Post = require("../models/Post");
 const User = require("../models/User");
 
+
+// Helper function to check if the user has reacted
+const hasUserReacted = (reacts, userId) => {
+  for (const [reaction, users] of reacts) {
+    if (users.includes(userId)) {
+      return true;
+    }
+  }
+  return false;
+};
+
 // Create a new post
 exports.createPost = async (req, res) => {
   const { body, latitude, longitude } = req.body;
@@ -59,35 +70,79 @@ exports.getAllPosts = async (req, res) => {
       limit = 20,
     } = req.query;
 
-    let query = { isArchived: false }; // Exclude archived posts by default
+    let query = { isArchived: false };
 
-    // Filter by gender if provided
     if (gender) {
       query["user.gender"] = gender;
     }
 
-    // Filter by location if longitude, latitude, and distance are provided
     if (distance && longitude && latitude) {
       query.location = {
         $geoWithin: {
           $centerSphere: [
             [parseFloat(longitude), parseFloat(latitude)],
-            parseFloat(distance) / 3963.2, // Earth's radius in miles
+            parseFloat(distance) / 3963.2,
           ],
         },
       };
     }
 
-    // Calculate pagination values
     const skip = (page - 1) * limit;
 
     const posts = await Post.find(query)
       .sort({ date: -1 })
-      .populate("user", ["name", "major", "postsCount", "educationLevel", "profilePicture"]) // Populate user details including educationLevel and profilePicture
+      .populate("user", [
+        "name",
+        "major",
+        "postsCount",
+        "educationLevel",
+        "profilePicture",
+      ])
       .skip(skip)
       .limit(parseInt(limit));
 
-    res.json(posts);
+    const formattedPosts = posts.map((post) => ({
+      _id: post._id,
+      body: post.body,
+      major: post.major,
+      reactsCount: Array.from(post.reacts.values()).reduce((a, b) => a + b, 0),
+      hasReacted: hasUserReacted(post.reacts, req.user.id),
+      date: timeSince(post.date),
+      user: {
+        name: post.user.name,
+        major: post.user.major,
+        educationLevel: post.user.educationLevel,
+        profilePicture: post.user.profilePicture
+          ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${
+              post.user.profilePicture
+            }`
+          : null,
+      },
+      comments: post.comments.map((comment) => ({
+        _id: comment._id,
+        body: comment.body,
+        user: comment.user.name,
+        reactsCount: Array.from(comment.reacts.values()).reduce(
+          (a, b) => a + b,
+          0
+        ),
+        hasReacted: hasUserReacted(comment.reacts, req.user.id),
+        date: timeSince(comment.date),
+        replies: comment.replies.map((reply) => ({
+          _id: reply._id,
+          body: reply.body,
+          user: reply.user.name,
+          reactsCount: Array.from(reply.reacts.values()).reduce(
+            (a, b) => a + b,
+            0
+          ),
+          hasReacted: hasUserReacted(reply.reacts, req.user.id),
+          date: timeSince(reply.date),
+        })),
+      })),
+    }));
+
+    res.json(formattedPosts);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
@@ -96,7 +151,7 @@ exports.getAllPosts = async (req, res) => {
 
 
 
-// Get all posts from friends with optional filters and pagination
+
 exports.getFriendsPosts = async (req, res) => {
   try {
     const {
@@ -108,53 +163,93 @@ exports.getFriendsPosts = async (req, res) => {
       limit = 20,
     } = req.query;
 
-    // Fetch the current user and their friends
     const user = await User.findById(req.user.id).populate("friends", [
       "_id",
       "gender",
     ]);
-
-    // Get the IDs of the user's friends
     let friendIds = user.friends.map((friend) => friend._id);
 
-    // If gender filter is applied, filter friends by gender
     if (gender) {
       friendIds = user.friends
         .filter((friend) => friend.gender === gender)
         .map((friend) => friend._id);
     }
 
-    // Build the query object to filter posts
-    let query = { user: { $in: friendIds }, isArchived: false }; // Exclude archived posts
+    let query = { user: { $in: friendIds }, isArchived: false };
 
-    // Filter by distance (assuming posts have location data)
     if (distance && longitude && latitude) {
       query.location = {
         $geoWithin: {
           $centerSphere: [
             [parseFloat(longitude), parseFloat(latitude)],
-            parseFloat(distance) / 3963.2, // Earth's radius in miles
+            parseFloat(distance) / 3963.2,
           ],
         },
       };
     }
 
-    // Calculate pagination values
     const skip = (page - 1) * limit;
 
-    // Fetch posts based on filters, sorting by date (most recent first)
     const posts = await Post.find(query)
       .sort({ date: -1 })
-      .populate("user", ["name", "major", "postsCount", "educationLevel", "profilePicture"]) // Populate user details including educationLevel and profilePicture
+      .populate("user", [
+        "name",
+        "major",
+        "postsCount",
+        "educationLevel",
+        "profilePicture",
+      ])
       .skip(skip)
       .limit(parseInt(limit));
 
-    res.json(posts);
+    const formattedPosts = posts.map((post) => ({
+      _id: post._id,
+      body: post.body,
+      major: post.major,
+      reactsCount: Array.from(post.reacts.values()).reduce((a, b) => a + b, 0),
+      hasReacted: hasUserReacted(post.reacts, req.user.id),
+      date: timeSince(post.date),
+      user: {
+        name: post.user.name,
+        major: post.user.major,
+        educationLevel: post.user.educationLevel,
+        profilePicture: post.user.profilePicture
+          ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${
+              post.user.profilePicture
+            }`
+          : null,
+      },
+      comments: post.comments.map((comment) => ({
+        _id: comment._id,
+        body: comment.body,
+        user: comment.user.name,
+        reactsCount: Array.from(comment.reacts.values()).reduce(
+          (a, b) => a + b,
+          0
+        ),
+        hasReacted: hasUserReacted(comment.reacts, req.user.id),
+        date: timeSince(comment.date),
+        replies: comment.replies.map((reply) => ({
+          _id: reply._id,
+          body: reply.body,
+          user: reply.user.name,
+          reactsCount: Array.from(reply.reacts.values()).reduce(
+            (a, b) => a + b,
+            0
+          ),
+          hasReacted: hasUserReacted(reply.reacts, req.user.id),
+          date: timeSince(reply.date),
+        })),
+      })),
+    }));
+
+    res.json(formattedPosts);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
   }
 };
+
 
 
 // Get all posts by a specific user ID with pagination
@@ -163,12 +258,17 @@ exports.getPostsByUserId = async (req, res) => {
   const { page = 1, limit = 20 } = req.query;
 
   try {
-    // Calculate pagination values
     const skip = (page - 1) * limit;
 
-    const posts = await Post.find({ user: userId, isArchived: false }) // Exclude archived posts
+    const posts = await Post.find({ user: userId, isArchived: false })
       .sort({ date: -1 })
-      .populate("user", ["name", "major", "postsCount", "educationLevel", "profilePicture"]) // Populate user details including educationLevel and profilePicture
+      .populate("user", [
+        "name",
+        "major",
+        "postsCount",
+        "educationLevel",
+        "profilePicture",
+      ])
       .skip(skip)
       .limit(parseInt(limit));
 
@@ -176,12 +276,54 @@ exports.getPostsByUserId = async (req, res) => {
       return res.status(404).json({ msg: "No posts found for this user" });
     }
 
-    res.json(posts);
+    const formattedPosts = posts.map((post) => ({
+      _id: post._id,
+      body: post.body,
+      major: post.major,
+      reactsCount: Array.from(post.reacts.values()).reduce((a, b) => a + b, 0),
+      hasReacted: hasUserReacted(post.reacts, req.user.id),
+      date: timeSince(post.date),
+      user: {
+        name: post.user.name,
+        major: post.user.major,
+        educationLevel: post.user.educationLevel,
+        profilePicture: post.user.profilePicture
+          ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${
+              post.user.profilePicture
+            }`
+          : null,
+      },
+      comments: post.comments.map((comment) => ({
+        _id: comment._id,
+        body: comment.body,
+        user: comment.user.name,
+        reactsCount: Array.from(comment.reacts.values()).reduce(
+          (a, b) => a + b,
+          0
+        ),
+        hasReacted: hasUserReacted(comment.reacts, req.user.id),
+        date: timeSince(comment.date),
+        replies: comment.replies.map((reply) => ({
+          _id: reply._id,
+          body: reply.body,
+          user: reply.user.name,
+          reactsCount: Array.from(reply.reacts.values()).reduce(
+            (a, b) => a + b,
+            0
+          ),
+          hasReacted: hasUserReacted(reply.reacts, req.user.id),
+          date: timeSince(reply.date),
+        })),
+      })),
+    }));
+
+    res.json(formattedPosts);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
   }
 };
+
 
 
 
@@ -310,7 +452,7 @@ exports.addReaction = async (req, res) => {
     target.reacts.set(reaction, (target.reacts.get(reaction) || 0) + 1);
     await post.save();
 
-    res.json(target);
+    return res.status(200).json(target);
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
@@ -496,7 +638,90 @@ exports.addReactionToPost = async (req, res) => {
     res.status(500).send("Server Error");
   }
 };
+// Remove a reaction from a post
+exports.removeReactionFromPost = async (req, res) => {
+  const { postId } = req.params;
+  const userId = req.user.id;
 
+  try {
+    const post = await Post.findById(postId);
+
+    if (!post) {
+      return res.status(404).json({ msg: "Post not found" });
+    }
+
+    let removed = false;
+    for (const [reactionType, userIds] of post.reacts) {
+      if (userIds.includes(userId)) {
+        post.reacts.set(
+          reactionType,
+          userIds.filter((id) => id.toString() !== userId.toString())
+        );
+        removed = true;
+        break;
+      }
+    }
+
+    if (!removed) {
+      return res.status(404).json({ msg: "User has not reacted" });
+    }
+
+    await post.save();
+
+    res.json({ msg: "Reaction removed", post });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+};
+
+// Remove a reaction from a comment or reply
+exports.removeReaction = async (req, res) => {
+  const { postId, commentId, replyId } = req.params;
+  const userId = req.user.id;
+
+  try {
+    const post = await Post.findById(postId);
+
+    if (!post) {
+      return res.status(404).json({ msg: "Post not found" });
+    }
+
+    let target;
+    if (replyId) {
+      target = post.comments.id(commentId).replies.id(replyId);
+    } else {
+      target = post.comments.id(commentId);
+    }
+
+    if (!target) {
+      return res.status(404).json({ msg: "Comment or reply not found" });
+    }
+
+    let removed = false;
+    for (const [reactionType, userIds] of target.reacts) {
+      if (userIds.includes(userId)) {
+        target.reacts.set(
+          reactionType,
+          userIds.filter((id) => id.toString() !== userId.toString())
+        );
+        removed = true;
+        break;
+      }
+    }
+
+    if (!removed) {
+      return res.status(404).json({ msg: "User has not reacted" });
+    }
+
+    await post.save();
+
+    res.json({ msg: "Reaction removed", target });
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Server Error");
+  }
+};
 // Helper function to calculate time since creation
 const timeSince = (date) => {
   const seconds = Math.floor((new Date() - date) / 1000);
