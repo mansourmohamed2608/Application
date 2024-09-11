@@ -102,45 +102,44 @@ exports.getAllPosts = async (req, res) => {
       .limit(parseInt(limit));
 
     const formattedPosts = posts.map((post) => ({
-      _id: post._id,
-      body: post.body,
-      major: post.major,
-      reactsCount: Array.from(post.reacts.values()).reduce((a, b) => a + b, 0),
-      hasReacted: hasUserReacted(post.reacts, req.user.id),
-      date: timeSince(post.date),
-      user: {
-        name: post.user.name,
-        major: post.user.major,
-        educationLevel: post.user.educationLevel,
-        profilePicture: post.user.profilePicture
-          ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${
-              post.user.profilePicture
-            }`
-          : null,
-      },
-      comments: post.comments.map((comment) => ({
-        _id: comment._id,
-        body: comment.body,
-        user: comment.user.name,
-        reactsCount: Array.from(comment.reacts.values()).reduce(
-          (a, b) => a + b,
-          0
-        ),
-        hasReacted: hasUserReacted(comment.reacts, req.user.id),
-        date: timeSince(comment.date),
-        replies: comment.replies.map((reply) => ({
-          _id: reply._id,
-          body: reply.body,
-          user: reply.user.name,
-          reactsCount: Array.from(reply.reacts.values()).reduce(
-            (a, b) => a + b,
-            0
-          ),
-          hasReacted: hasUserReacted(reply.reacts, req.user.id),
-          date: timeSince(reply.date),
-        })),
-      })),
-    }));
+  _id: post._id,
+  body: post.body,
+  major: post.major,
+  reactsCount: Array.from((post.reacts || new Map()).values()).reduce((a, b) => a + b, 0),
+  hasReacted: hasUserReacted(post.reacts || new Map(), req.user.id),
+  date: timeSince(post.date),
+  user: {
+    name: post.user.name,
+    major: post.user.major,
+    educationLevel: post.user.educationLevel,
+    profilePicture: post.user.profilePicture
+      ? `${req.protocol}://${req.get("host")}/uploads/profilephotos/${post.user.profilePicture}`
+      : null,
+  },
+  comments: post.comments.map((comment) => ({
+    _id: comment._id,
+    body: comment.body,
+    user: comment.user.name,
+    reactsCount: Array.from((comment.reacts || new Map()).values()).reduce(
+      (a, b) => a + b,
+      0
+    ),
+    hasReacted: hasUserReacted(comment.reacts || new Map(), req.user.id),
+    date: timeSince(comment.date),
+    replies: comment.replies.map((reply) => ({
+      _id: reply._id,
+      body: reply.body,
+      user: reply.user.name,
+      reactsCount: Array.from((reply.reacts || new Map()).values()).reduce(
+        (a, b) => a + b,
+        0
+      ),
+      hasReacted: hasUserReacted(reply.reacts || new Map(), req.user.id),
+      date: timeSince(reply.date),
+    })),
+  })),
+}));
+
 
     res.json(formattedPosts);
   } catch (err) {
