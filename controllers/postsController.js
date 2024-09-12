@@ -421,6 +421,7 @@ exports.archivePost = async (req, res) => {
 exports.addReaction = async (req, res) => {
   const { postId, commentId, replyId } = req.params;
   const { reaction } = req.body;
+  const userId = req.user.id;
 
   try {
     const post = await Post.findById(postId);
@@ -442,16 +443,27 @@ exports.addReaction = async (req, res) => {
       return res.status(404).json({ msg: "Comment or reply not found" });
     }
 
-    // Increment the reaction count
-    target.reacts.set(reaction, (target.reacts.get(reaction) || 0) + 1);
+    // Ensure that the user hasn't already reacted with the same reaction type
+    const currentReactions = target.reacts.get(reaction) || [];
+
+    if (currentReactions.includes(userId)) {
+      return res
+        .status(400)
+        .json({ msg: "User has already reacted with this type" });
+    }
+
+    // Add the user's ID to the array for the given reaction type
+    target.reacts.set(reaction, [...currentReactions, userId]);
+
     await post.save();
 
-    return res.status(200).json(target);
+    return res.status(200).json({ msg: "Reaction added", target });
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
   }
 };
+
 // Add a reply to a comment or a reply
 exports.addReply = async (req, res) => {
   const { postId, commentId, replyId } = req.params;
@@ -689,6 +701,7 @@ exports.removeReactionFromPost = async (req, res) => {
 // Remove a reaction from a comment or reply
 exports.removeReaction = async (req, res) => {
   const { postId, commentId, replyId } = req.params;
+  const { reaction } = req.body;
   const userId = req.user.id;
 
   try {
@@ -700,8 +713,10 @@ exports.removeReaction = async (req, res) => {
 
     let target;
     if (replyId) {
+      // Find the reply within the nested replies
       target = post.comments.id(commentId).replies.id(replyId);
     } else {
+      // Find the comment
       target = post.comments.id(commentId);
     }
 
@@ -709,30 +724,30 @@ exports.removeReaction = async (req, res) => {
       return res.status(404).json({ msg: "Comment or reply not found" });
     }
 
-    let removed = false;
-    for (const [reactionType, userIds] of target.reacts) {
-      if (userIds.includes(userId)) {
-        target.reacts.set(
-          reactionType,
-          userIds.filter((id) => id.toString() !== userId.toString())
-        );
-        removed = true;
-        break;
-      }
-    }
+    // Get the current reactions for the given type
+    let currentReactions = target.reacts.get(reaction) || [];
 
-    if (!removed) {
-      return res.status(404).json({ msg: "User has not reacted" });
+    // Remove the user's ID from the array if it exists
+    currentReactions = currentReactions.filter(
+      (id) => id.toString() !== userId.toString()
+    );
+
+    // If the array is now empty, remove the reaction type from the map
+    if (currentReactions.length === 0) {
+      target.reacts.delete(reaction);
+    } else {
+      target.reacts.set(reaction, currentReactions);
     }
 
     await post.save();
 
-    res.json({ msg: "Reaction removed", target });
+    return res.status(200).json({ msg: "Reaction removed", target });
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
   }
 };
+
 // Helper function to calculate time since creation
 const timeSince = (date) => {
   const seconds = Math.floor((new Date() - date) / 1000);
